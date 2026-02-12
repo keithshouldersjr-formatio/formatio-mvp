@@ -7,7 +7,7 @@ export default function Home() {
     <main className="min-h-screen bg-black text-white">
       <div className="mx-auto flex min-h-screen max-w-5xl flex-col items-center justify-center px-6 text-center">
         <Image
-          src="/Formatío-logo.png"
+          src="/formatio-logo.png"
           alt="Formatío logo"
           width={220}
           height={220}
