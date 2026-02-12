@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Formatío",
     description: "Intelligent Formatíon design for the local church.",
-    url: "https://Formatío.church",
+    url: "https://Formatio.church",
     siteName: "Formatío",
     images: [
       {
