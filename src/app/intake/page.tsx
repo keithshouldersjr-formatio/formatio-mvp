@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type { Dispatch, SetStateAction } from "react";
+import { ContextOptions } from "@/lib/schema";
+import { NeedsOptions } from "@/lib/schema";
 
 type FormData = {
   ageGroup: string;
@@ -40,10 +43,15 @@ type StepFourProps = StepBaseProps &
 type StepFiveProps = StepBaseProps & {
   back: () => void;
   handleSubmit: () => void;
+  loading: boolean;
+  error: string | null;
 };
 
 export default function IntakePage() {
   const [step, setStep] = useState<number>(1);
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<FormData>({
     ageGroup: "",
@@ -69,9 +77,69 @@ export default function IntakePage() {
     }));
   };
 
-  const handleSubmit = () => {
-    // Later: POST to /api/generate and redirect to /result/[id]
-    console.log("Submitting:", formData);
+  const handleSubmit = async () => {
+    setError(null);
+    setLoading(true);
+
+    try {
+      // Map your current form shape -> the API schema shape
+      const payload = {
+        ageGroup: formData.ageGroup,
+        demographic: "Not provided", // You can add a step later; for MVP keep it simple
+        ministryProblem:
+          formData.problem === "Other" && formData.problemDetail?.trim()
+            ? formData.problemDetail.trim()
+            : formData.problem,
+        desiredOutcome: formData.outcomeDetail?.trim()
+          ? `${formData.outcome} — ${formData.outcomeDetail.trim()}`
+          : formData.outcome,
+        context:
+          formData.context === "Other" && formData.contextDetail?.trim()
+            ? "Other"
+            : (formData.context as
+                | "Sunday School"
+                | "Bible Study"
+                | "Morning Worship"
+                | "Small Group"
+                | "Other"),
+        needs: formData.needs.map((n) => {
+          // Your UI uses "Teaching Plan" / "Leader Training" etc.
+          // Your API schema uses slightly different strings.
+          switch (n) {
+            case "Teaching Plan":
+              return "Plan";
+            case "Leader Training":
+              return "Training Material";
+            default:
+              return n;
+          }
+        }),
+        leaderName: formData.leaderName,
+        groupName: formData.groupName,
+        timeframe: undefined,
+      };
+
+      const res = await fetch("/api/generate-playbook", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to generate playbook.");
+      }
+
+      router.push(`/result/${data.id}`);
+    } catch (err: unknown) {
+      console.error("Submit error:", err);
+      const message =
+        err instanceof Error ? err.message : "Unexpected error occurred.";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -80,11 +148,7 @@ export default function IntakePage() {
         <p className="text-sm text-white/50 mb-6">Step {step} of 5</p>
 
         {step === 1 && (
-          <StepOne
-            formData={formData}
-            setFormData={setFormData}
-            next={next}
-          />
+          <StepOne formData={formData} setFormData={setFormData} next={next} />
         )}
 
         {step === 2 && (
@@ -121,6 +185,8 @@ export default function IntakePage() {
             setFormData={setFormData}
             back={back}
             handleSubmit={handleSubmit}
+            loading={loading}
+            error={error}
           />
         )}
       </div>
@@ -340,26 +406,14 @@ function StepFour({
   back,
   toggleNeed,
 }: StepFourProps) {
-  const contexts = [
-    "Sunday School",
-    "Bible Study",
-    "Morning Worship",
-    "Small Group",
-    "Leadership Training",
-    "Other",
-  ] as const;
-
-  const needs = [
-    "Curriculum",
-    "Teaching Plan",
-    "Teaching Methods",
-    "Leader Training",
-    "Itinerary",
-  ] as const;
+  const contexts = ContextOptions;
+  const needs = NeedsOptions;
 
   return (
     <div>
-      <h2 className="text-2xl font-semibold mb-2">How will this be delivered?</h2>
+      <h2 className="text-2xl font-semibold mb-2">
+        How will this be delivered?
+      </h2>
       <p className="text-white/60 mb-6">
         Choose a context and what you want Formatio to generate.
       </p>
@@ -465,9 +519,12 @@ function StepFive({
   setFormData,
   back,
   handleSubmit,
+  loading,
+  error,
 }: StepFiveProps) {
   const canGenerate =
-    formData.leaderName.trim().length > 0 && formData.groupName.trim().length > 0;
+    formData.leaderName.trim().length > 0 &&
+    formData.groupName.trim().length > 0;
 
   return (
     <div>
@@ -508,7 +565,8 @@ function StepFive({
         <p className="text-sm text-white/70 mb-3">Review</p>
         <ul className="text-sm text-white/80 space-y-1">
           <li>
-            <span className="text-white/50">Age Group:</span> {formData.ageGroup}
+            <span className="text-white/50">Age Group:</span>{" "}
+            {formData.ageGroup}
           </li>
           <li>
             <span className="text-white/50">Problem:</span> {formData.problem}
@@ -530,6 +588,7 @@ function StepFive({
       </div>
 
       <div className="flex justify-between items-center mt-8">
+        {error && <p className="mt-4 text-sm text-red-300">{error}</p>}
         <button
           type="button"
           onClick={back}
@@ -544,7 +603,7 @@ function StepFive({
           onClick={handleSubmit}
           className="bg-[#C6A75E] text-black px-6 py-2 rounded-full font-semibold disabled:opacity-40 transition"
         >
-          Generate Plan
+          {loading ? "Generating..." : "Generate Plan"}
         </button>
       </div>
     </div>
