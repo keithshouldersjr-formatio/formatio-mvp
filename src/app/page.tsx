@@ -17,7 +17,7 @@ export default function Home() {
         <h1 className="mt-6 text-3xl font-semibold tracking-tight">Formatío</h1>
 
         <p className="mt-3 max-w-xl text-lg text-white/80">
-          Architecting Discipleship
+          Tools For Christian Education
         </p>
 
         {/* CTA Button */}
