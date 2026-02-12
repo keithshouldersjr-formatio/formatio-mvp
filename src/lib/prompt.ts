@@ -49,5 +49,15 @@ LINK RULES (VERY IMPORTANT)
   Amazon search: https://www.amazon.com/s?k=<urlencoded title + author>
   Publisher search: use the publisher site search page if known; otherwise use https://www.google.com/search?q=<urlencoded publisher + title>
 - Do NOT invent ISBNs.
+
+STRICT STRUCTURE RULES
+- You MUST include exactly 6 bloomsObjectives, one for each level:
+  Remember, Understand, Apply, Analyze, Evaluate, Create.
+- You MUST include at least 3 measurableIndicators.
+- You MUST include at least 3 strategy.methods.
+- You MUST include at least 3 recommendedResources.
+- Do NOT return fewer than required items.
+- Do NOT include markdown.
+- Return pure JSON only.
 `;
 }

@@ -102,18 +102,7 @@ export default function IntakePage() {
                 | "Morning Worship"
                 | "Small Group"
                 | "Other"),
-        needs: formData.needs.map((n) => {
-          // Your UI uses "Teaching Plan" / "Leader Training" etc.
-          // Your API schema uses slightly different strings.
-          switch (n) {
-            case "Teaching Plan":
-              return "Plan";
-            case "Leader Training":
-              return "Training Material";
-            default:
-              return n;
-          }
-        }),
+        needs: formData.needs,
         leaderName: formData.leaderName,
         groupName: formData.groupName,
         timeframe: undefined,
@@ -126,7 +115,7 @@ export default function IntakePage() {
       });
 
       const data = await res.json();
-
+      console.log("Generate response:", data);
       if (!res.ok) {
         throw new Error(data?.error || "Failed to generate playbook.");
       }
