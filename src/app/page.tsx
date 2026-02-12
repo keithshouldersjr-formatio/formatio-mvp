@@ -21,15 +21,13 @@ export default function Home() {
         </p>
 
         {/* CTA Button */}
+
         <Link
           href="/intake"
-          className="mt-10 rounded-full bg-[#e1b369] px-8 py-3 text-black font-semibold transition hover:bg-[#B89A4E]"
+          className="mt-10 inline-flex items-center justify-center rounded-full bg-[#e1b369] px-10 py-3 text-black font-semibold tracking-wide transition hover:bg-[#B89A4E]"
         >
-          Begin
+          Begin Designing
         </Link>
-
-        {/* Animated Down Arrow */}
-        <ArrowDown className="mt-10 animate-pulse text-[#e1b369]" size={28} />
       </div>
     </main>
   );
