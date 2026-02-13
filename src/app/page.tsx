@@ -12,7 +12,7 @@ export default function Home() {
       {/* Center area */}
       <div className="flex flex-1 items-center justify-center px-6">
         {/* Visual centering tweak */}
-        <div className="w-full max-w-5xl text-center translate-y-24 md:translate-y-14">
+        <div className="w-full max-w-5xl text-center translate-y-10 md:translate-y-16">
           <div className="flex justify-center">
             <Image
               src="/dd-logo.png"
