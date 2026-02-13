@@ -469,14 +469,12 @@ export default async function ResultPage({
                 New playbook
               </a>
 
-              <button
-                type="button"
-                disabled
-                className="rounded-full bg-[#C6A75E] px-4 py-2 text-sm font-semibold text-black opacity-60"
-                title="PDF export coming next"
+              <a
+                href={`/api/playbook/${id}/pdf`}
+                className="rounded-full bg-[#C6A75E] px-4 py-2 text-sm font-semibold text-black hover:opacity-90 transition"
               >
                 Download PDF
-              </button>
+              </a>
             </div>
           </div>
         </div>
