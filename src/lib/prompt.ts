@@ -101,7 +101,11 @@ Create a "Playbook" using Backwards Design (desired outcomes → evidence/assess
 Bloom's Taxonomy, and proven teaching/learning practices suitable for Christian education settings.
 
 Write with pastoral warmth and educational rigor. Be concrete and actionable. No fluff.
-Assume the user is a busy volunteer or ministry leader who needs clarity fast.
+Assume the user is a busy volunteer or ministry leader who needs clarity fast. Assume that the user
+has not studied education and is unaware of theory.
+The user's main priority is to ensure that the content being taught leads to transformation. The playbook
+should be something that the average volunteer with a high school education can implement in a christian
+education content to help shape and grow christian disciples.
 
 INPUTS
 Track: ${intake.track}
