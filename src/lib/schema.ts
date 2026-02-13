@@ -1,3 +1,4 @@
+// src/lib/schema.ts
 import { z } from "zod";
 
 /* ----------------------------------
@@ -39,52 +40,112 @@ export const SettingOptions = [
 ] as const;
 export type Setting = (typeof SettingOptions)[number];
 
-export const DurationOptions = [
-  "45–60 min",
-  "75–90 min",
-  "Custom",
-] as const;
+export const DurationOptions = ["45–60 min", "75–90 min", "Custom"] as const;
 export type Duration = (typeof DurationOptions)[number];
-
 
 /* ----------------------------------
    INTAKE SCHEMA (MVP SAFE)
+   - Keep this aligned with Intake page payload
 ----------------------------------- */
 
-export const IntakeSchema = z.object({
-  role: z.enum(RoleOptions),
+export const IntakeSchema = z
+  .object({
+    role: z.enum(RoleOptions),
+    designType: z.enum(DesignTypeOptions),
+    timeHorizon: z.enum(TimeHorizonOptions),
+    ageGroup: z.enum(AgeGroupOptions),
 
-  designType: z.enum(DesignTypeOptions),
+    setting: z.enum(SettingOptions),
+    settingDetail: z.string().optional(),
 
-  timeHorizon: z.enum(TimeHorizonOptions),
+    duration: z.enum(DurationOptions),
+    durationCustomMinutes: z.number().int().min(10).max(240).optional(),
 
-  ageGroup: z.enum(AgeGroupOptions),
+    // IMPORTANT: if your UI may omit it, keep optional.
+    // If you want it required, change to z.string().min(1)
+    topicOrText: z.string().optional(),
 
-  setting: z.enum(SettingOptions),
+    desiredOutcome: z.string().min(5),
 
-  settingDetail: z.string().optional(),
+    leaderName: z.string().min(1).optional(),
+    groupName: z.string().min(1),
 
-  duration: z.enum(DurationOptions),
+    // Prefer array at API boundary; your Intake page can split text into array.
+    constraints: z.array(z.string()).optional(),
+  })
+  .superRefine((v, ctx) => {
+    // If setting is "Other", require settingDetail
+    if (v.setting === "Other" && !v.settingDetail?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["settingDetail"],
+        message: "settingDetail is required when setting is Other.",
+      });
+    }
 
-  durationCustomMinutes: z.number().int().min(10).max(240).optional(),
-
-  topicOrText: z.string().optional(),
-
-  desiredOutcome: z.string().min(5),
-
-  leaderName: z.string().min(1).optional(),
-
-  groupName: z.string().min(1),
-
-  constraints: z.array(z.string()).optional(),
-});
+    // If duration is "Custom", require durationCustomMinutes
+    if (v.duration === "Custom") {
+      if (typeof v.durationCustomMinutes !== "number") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["durationCustomMinutes"],
+          message: "durationCustomMinutes is required when duration is Custom.",
+        });
+      }
+    }
+  });
 
 export type Intake = z.infer<typeof IntakeSchema>;
 
-
 /* ----------------------------------
    BLUEPRINT OUTPUT SCHEMA
+   - Strongly type Teacher module to fix TS build errors
 ----------------------------------- */
+
+const BloomLevelSchema = z.enum([
+  "Remember",
+  "Understand",
+  "Apply",
+  "Analyze",
+  "Evaluate",
+  "Create",
+]);
+
+const FlowItemSchema = z.object({
+  segment: z.string(),
+  minutes: z.number().int().min(1).max(240),
+  purpose: z.string(),
+});
+
+const SessionSchema = z.object({
+  title: z.string(),
+  durationMinutes: z.number().int().min(10).max(240),
+  flow: z.array(FlowItemSchema).min(1),
+});
+
+// Keep this aligned with what your prompt produces for teacher module
+const TeacherModuleSchema = z.object({
+  prepChecklist: z.object({
+    beforeTheWeek: z.array(z.string()).min(1),
+    dayOf: z.array(z.string()).min(1),
+  }),
+
+  lessonPlan: z.object({
+    planType: z.enum(["Single Session", "Multi-Session", "Quarter/Semester"]),
+    sessions: z.array(SessionSchema).min(1),
+  }),
+
+  facilitationPrompts: z.object({
+    openingQuestions: z.array(z.string()).min(1),
+    discussionQuestions: z.array(z.string()).min(1),
+    applicationPrompts: z.array(z.string()).min(1),
+  }),
+
+  followUpPlan: z.object({
+    sameWeekPractice: z.array(z.string()).min(1),
+    nextTouchpoint: z.array(z.string()).min(1),
+  }),
+});
 
 export const BlueprintSchema = z.object({
   header: z.object({
@@ -98,8 +159,10 @@ export const BlueprintSchema = z.object({
       groupName: z.string(),
     }),
 
+    // NOTE: keep these typed loosely enough to tolerate "Other" handling,
+    // but still structured enough for UI.
     context: z.object({
-      setting: z.enum(SettingOptions).or(z.string()), // allows "Other" detail patterns if needed
+      setting: z.enum(SettingOptions).or(z.string()),
       ageGroup: z.enum(AgeGroupOptions).or(z.string()),
 
       designType: z.enum(DesignTypeOptions).or(z.string()),
@@ -107,7 +170,9 @@ export const BlueprintSchema = z.object({
 
       durationMinutes: z.number().int().min(10).max(240),
 
+      // In your prompt you often send "" or actual string
       topicOrText: z.string(),
+
       constraints: z.array(z.string()).optional(),
     }),
   }),
@@ -123,14 +188,7 @@ export const BlueprintSchema = z.object({
     bloomsObjectives: z
       .array(
         z.object({
-          level: z.enum([
-            "Remember",
-            "Understand",
-            "Apply",
-            "Analyze",
-            "Evaluate",
-            "Create",
-          ]),
+          level: BloomLevelSchema,
           objective: z.string(),
           evidence: z.string(),
         })
@@ -139,7 +197,10 @@ export const BlueprintSchema = z.object({
   }),
 
   modules: z.object({
-    teacher: z.unknown().optional(),
+    // ✅ strongly typed (fixes your Vercel TS error)
+    teacher: TeacherModuleSchema.optional(),
+
+    // Leave these permissive until you’re rendering them safely everywhere.
     pastorLeader: z.unknown().optional(),
     youthLeader: z.unknown().optional(),
   }),
