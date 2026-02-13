@@ -1,60 +1,81 @@
 import "server-only";
 import { supabaseServer } from "@/lib/supabase-server";
-import { BlueprintSchema, type Intake, type Blueprint } from "@/lib/schema";
+import type { Intake, Blueprint } from "@/lib/schema";
 
-/* -----------------------------
-   Insert
------------------------------- */
+export type BlueprintRow = {
+  id: string;
+  created_at: string;
+  blueprint: Blueprint;
+};
 
-export async function insertBlueprint(
-  intake: Intake,
-  blueprint: Blueprint
-) {
+export type BlueprintListItem = {
+  id: string;
+  createdAt: string;
+  title: string;
+  track: string;
+  groupName: string;
+};
+
+export async function insertBlueprint(intake: Intake, blueprint: Blueprint) {
   const supabase = supabaseServer();
+
+  const {
+    data: { user },
+    error: userErr,
+  } = await supabase.auth.getUser();
+
+  if (userErr || !user) throw new Error("Unauthorized");
 
   const { data, error } = await supabase
     .from("blueprints")
     .insert({
+      user_id: user.id,
       intake,
-      blueprint, // already validated before calling this
+      blueprint,
     })
     .select("id")
-    .single();
+    .single<{ id: string }>();
 
   if (error) throw new Error(error.message);
-
-  return data.id as string;
+  return data.id;
 }
 
-/* -----------------------------
-   Fetch (schema-validated)
------------------------------- */
-
-export async function fetchBlueprintById(
-  id: string
-): Promise<Blueprint | null> {
+export async function fetchBlueprintById(id: string): Promise<Blueprint | null> {
   const supabase = supabaseServer();
 
   const { data, error } = await supabase
     .from("blueprints")
     .select("blueprint")
     .eq("id", id)
-    .single();
+    .single<{ blueprint: Blueprint }>();
 
-  if (error || !data?.blueprint) {
-    return null;
-  }
+  if (error) return null;
+  return data.blueprint ?? null;
+}
 
-  // 🔒 Critical fix: validate stored JSON
-  const parsed = BlueprintSchema.safeParse(data.blueprint);
+export async function fetchMyBlueprints(): Promise<BlueprintListItem[]> {
+  const supabase = supabaseServer();
 
-  if (!parsed.success) {
-    console.error(
-      "Stored blueprint failed schema validation:",
-      parsed.error.flatten()
-    );
-    return null; // prevents server crash
-  }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  return parsed.data;
+  if (!user) return [];
+
+  const { data, error } = await supabase
+    .from("blueprints")
+    .select("id, created_at, blueprint")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .returns<BlueprintRow[]>();
+
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: row.id,
+    createdAt: row.created_at,
+    title: row.blueprint.header?.title ?? "Untitled Blueprint",
+    track: row.blueprint.header?.track ?? "—",
+    groupName: row.blueprint.header?.preparedFor?.groupName ?? "—",
+  }));
 }

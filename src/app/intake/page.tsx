@@ -153,7 +153,7 @@ export default function IntakePage() {
       if (!data.id)
         throw new Error("Blueprint generation did not return an id.");
 
-      window.location.href = `/result/${data.id}`;
+      window.location.href = `/blueprints/${data.id}`;
     } catch (err: unknown) {
       setSubmitError(err instanceof Error ? err.message : "Unexpected error.");
       setIsSubmitting(false);
