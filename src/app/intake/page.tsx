@@ -197,8 +197,8 @@ export default function IntakePage() {
         <div className="mb-8 flex items-center gap-3">
           <div className="relative h-12 w-12 overflow-hidden rounded-2xl border border-white/10 bg-black">
             <Image
-              src="/formatio-logo.png"
-              alt="Formatio"
+              src="/dd-logo.png"
+              alt="Discipleship Design"
               fill
               className="object-contain p-1"
               priority
@@ -206,11 +206,9 @@ export default function IntakePage() {
           </div>
           <div className="leading-tight">
             <div className="text-xl font-semibold tracking-tight text-[#C6A75E]">
-              Formatio
+              Discipleship Design
             </div>
-            <div className="text-sm text-white/60">
-              Intelligent congregational formation
-            </div>
+            <div className="text-sm text-white/60">Discipleship By Design</div>
           </div>
         </div>
 
