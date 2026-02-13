@@ -103,8 +103,8 @@ export function buildBlueprintPdfDocument(
   const header = blueprint.header;
   const overview = blueprint.overview;
 
-  const title = safeStr(header?.title, "Formatio Blueprint");
-  const track = safeStr(header?.track, "—");
+  const title = safeStr(header?.title, "Discipleship by Design Blueprint");
+  const track = safeStr(header?.role, "—");
   const leaderName = safeStr(header?.preparedFor?.leaderName, "—");
   const groupName = safeStr(header?.preparedFor?.groupName, "—");
 
