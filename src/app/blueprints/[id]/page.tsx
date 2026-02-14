@@ -526,9 +526,18 @@ function YouthLeaderModuleView({ bp }: { bp: Blueprint }) {
 export default async function BlueprintPage({
   params,
 }: {
-  params: { id: string };
+  params: { id?: string };
 }) {
-  const { id } = params;
+  const id = params?.id;
+
+  // ✅ Guard against bad routes like /blueprints/undefined
+  if (!id || id === "undefined") return <NotFoundView />;
+
+  // ✅ Guard against non-UUIDs (prevents Supabase/Postgres 22P02)
+  const UUID_RE =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+  if (!UUID_RE.test(id)) return <NotFoundView />;
 
   // fetch validated blueprint; repo returns Blueprint | null
   const blueprint = await fetchBlueprintById(id);
