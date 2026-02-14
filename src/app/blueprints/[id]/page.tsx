@@ -596,7 +596,7 @@ export default async function BlueprintPage({
 
               {/* Must match your route file: /api/blueprints/[id]/pdf */}
               <a
-                href={`/api/blueprints/${id}/pdf`}
+                href={`/api/blueprint/${id}/pdf`}
                 className="rounded-full bg-[#C6A75E] px-4 py-2 text-sm font-semibold text-black hover:opacity-90 transition"
               >
                 Download PDF

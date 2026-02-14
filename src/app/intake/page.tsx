@@ -45,6 +45,51 @@ type FormData = {
 
 type SetFormData = Dispatch<SetStateAction<FormData>>;
 
+function PremiumThinkingOverlay({ visible }: { visible: boolean }) {
+  if (!visible) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md">
+      {/* ambient glow */}
+      <div className="absolute h-[500px] w-[500px] rounded-full bg-[#C6A75E]/10 blur-3xl animate-pulse" />
+
+      <div className="relative flex flex-col items-center gap-8">
+        {/* Spinner core */}
+        <div className="relative h-24 w-24">
+          {/* outer rotating ring */}
+          <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[#C6A75E] animate-spin" />
+
+          {/* inner glow ring */}
+          <div className="absolute inset-2 rounded-full border border-[#C6A75E]/40 animate-pulse" />
+
+          {/* center orb */}
+          <div className="absolute inset-6 rounded-full bg-[#C6A75E]/20 backdrop-blur-sm" />
+        </div>
+
+        {/* Text block */}
+        <div className="text-center space-y-3">
+          <div className="text-lg font-semibold tracking-wide text-[#C6A75E]">
+            Designing Your Blueprint
+          </div>
+
+          <div className="text-sm text-white/60 max-w-xs leading-relaxed">
+            Structuring outcomes. Aligning formation goals.
+            <br />
+            Building your intentional plan…
+          </div>
+
+          {/* subtle animated dots */}
+          <div className="flex justify-center gap-1 mt-2">
+            <span className="h-2 w-2 rounded-full bg-[#C6A75E] animate-bounce [animation-delay:-0.2s]" />
+            <span className="h-2 w-2 rounded-full bg-[#C6A75E] animate-bounce [animation-delay:-0.1s]" />
+            <span className="h-2 w-2 rounded-full bg-[#C6A75E] animate-bounce" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CardButton({
   selected,
   onClick,
@@ -225,6 +270,7 @@ export default function IntakePage() {
 
   return (
     <main className="min-h-screen bg-black text-white flex items-center justify-center px-6">
+      <PremiumThinkingOverlay visible={isSubmitting} />
       {/* background glow */}
       <div className="pointer-events-none fixed inset-0 opacity-60">
         <div className="absolute left-1/2 top-[-140px] h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-[#e1b369]/10 blur-3xl" />
@@ -686,7 +732,7 @@ function StepFour({
           onClick={onSubmit}
           className="rounded-full bg-[#e1b369] px-6 py-2 text-sm font-semibold text-black disabled:opacity-60"
         >
-          {isSubmitting ? "Designing…" : "Generate Blueprint"}
+          Generate Blueprint
         </button>
       </div>
     </div>
