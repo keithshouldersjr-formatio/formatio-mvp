@@ -1,9 +1,10 @@
 // src/app/api/generate-blueprint/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { createClient } from "@supabase/supabase-js";
+
 import { IntakeSchema, BlueprintSchema } from "@/lib/schema";
 import { buildBlueprintPrompt } from "@/lib/prompt";
-import { insertBlueprint } from "@/lib/blueprint-repo";
 import { supabaseRoute } from "@/lib/supabase-route";
 
 export const runtime = "nodejs";
@@ -60,11 +61,25 @@ async function callModel(client: OpenAI, prompt: string) {
   });
 }
 
+function supabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !serviceKey) {
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.");
+  }
+
+  // Service role bypasses RLS
+  return createClient(url, serviceKey, {
+    auth: { persistSession: false },
+  });
+}
+
 export async function POST(req: Request) {
   const requestId = crypto.randomUUID();
 
   try {
-    // 1) Auth check
+    // 1) Auth check (user context)
     const supabase = await supabaseRoute();
     const { data: userRes, error: userErr } = await supabase.auth.getUser();
 
@@ -124,6 +139,8 @@ export async function POST(req: Request) {
     const schemaRes = BlueprintSchema.safeParse(candidate);
 
     // 8) If schema fails, attempt one repair pass
+    let blueprint: unknown;
+
     if (!schemaRes.success) {
       const flat = schemaRes.error.flatten();
       const candidateKeys = safeKeys(candidate);
@@ -181,7 +198,6 @@ Rules:
 
       if (!schemaRes2.success) {
         const flat2 = schemaRes2.error.flatten();
-
         console.error(`[generate-blueprint] schema failed after repair requestId=${requestId}`, flat2);
         console.error(
           `[generate-blueprint] raw repair (first 4000) requestId=${requestId}\n`,
@@ -197,20 +213,47 @@ Rules:
         });
       }
 
-      const blueprint = schemaRes2.data;
-
-      // 9) Insert WITH userId
-      const id = await insertBlueprint(userId, intake, blueprint);
-
-      return NextResponse.json({ id });
+      blueprint = schemaRes2.data;
+    } else {
+      blueprint = schemaRes.data;
     }
 
-    const blueprint = schemaRes.data;
+    // 9) Insert using ADMIN client (bypasses RLS)
+    const admin = supabaseAdmin();
 
-    // 9) Insert WITH userId
-    const id = await insertBlueprint(userId, intake, blueprint);
+    const { data: inserted, error: insertErr } = await admin
+      .from("blueprints")
+      .insert({
+        user_id: userId,
+        intake,
+        blueprint,
+        title:
+          typeof blueprint === "object" && blueprint !== null
+            ? (blueprint as { header?: { title?: string } }).header?.title ?? "Untitled Blueprint"
+            : "Untitled Blueprint",
+        role:
+          typeof blueprint === "object" && blueprint !== null
+            ? (blueprint as { header?: { role?: string } }).header?.role ?? null
+            : null,
+        group_name:
+          typeof blueprint === "object" && blueprint !== null
+            ? (blueprint as { header?: { preparedFor?: { groupName?: string } } }).header?.preparedFor
+                ?.groupName ?? null
+            : null,
+      })
+      .select("id")
+      .single();
 
-    return NextResponse.json({ id });
+    if (insertErr) {
+      console.error(`[generate-blueprint] insert failed requestId=${requestId}`, insertErr);
+      return err(500, {
+        error: insertErr.message,
+        stage: "insert",
+        details: insertErr,
+      });
+    }
+
+    return NextResponse.json({ id: inserted.id as string });
   } catch (e: unknown) {
     console.error(`[generate-blueprint] unhandled requestId=${requestId}`, e);
     const message = e instanceof Error ? e.message : "Unexpected error";
