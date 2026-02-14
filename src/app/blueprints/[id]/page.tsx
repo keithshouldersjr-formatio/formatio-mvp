@@ -528,7 +528,7 @@ export default async function BlueprintPage({
 }: {
   params: { id?: string };
 }) {
-  const id = params?.id;
+  const { id } = await params;
 
   // ✅ Guard against bad routes like /blueprints/undefined
   if (!id || id === "undefined") return <NotFoundView />;

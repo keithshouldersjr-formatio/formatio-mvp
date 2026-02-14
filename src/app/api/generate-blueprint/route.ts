@@ -1,7 +1,7 @@
 // src/app/api/generate-blueprint/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
-import { IntakeSchema, BlueprintSchema } from "@/lib/schema";
+import { IntakeSchema, BlueprintSchema, type Intake, type Blueprint } from "@/lib/schema";
 import { buildBlueprintPrompt } from "@/lib/prompt";
 import { supabaseRoute } from "@/lib/supabase-route";
 
@@ -58,79 +58,6 @@ async function callModel(client: OpenAI, prompt: string) {
   });
 }
 
-function getSupabaseAdminConfig() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!url || !serviceKey) {
-    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.");
-  }
-
-  return { url, serviceKey };
-}
-
-async function insertBlueprintAdmin(args: {
-  userId: string;
-  intake: unknown;
-  blueprint: unknown;
-}) {
-  const { url, serviceKey } = getSupabaseAdminConfig();
-
-  // REST endpoint for inserts
-  const endpoint = `${url}/rest/v1/blueprints?select=id`;
-
-  const payload = {
-    user_id: args.userId,
-    intake: args.intake,
-    blueprint: args.blueprint,
-    // Optional “index columns” (keep if they exist in your table)
-    title:
-      typeof args.blueprint === "object" && args.blueprint !== null
-        ? (args.blueprint as { header?: { title?: string } }).header?.title ?? "Untitled Blueprint"
-        : "Untitled Blueprint",
-    role:
-      typeof args.blueprint === "object" && args.blueprint !== null
-        ? (args.blueprint as { header?: { role?: string } }).header?.role ?? null
-        : null,
-    group_name:
-      typeof args.blueprint === "object" && args.blueprint !== null
-        ? (args.blueprint as { header?: { preparedFor?: { groupName?: string } } }).header?.preparedFor
-            ?.groupName ?? null
-        : null,
-  };
-
-  const res = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      // These two headers are what make it “service role” no matter what:
-      apikey: serviceKey,
-      Authorization: `Bearer ${serviceKey}`,
-      Prefer: "return=representation",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const text = await res.text();
-  if (!res.ok) {
-    // Help you quickly confirm whether the service key is actually present
-    // (We only log length + prefix — not the full secret.)
-    console.error("[insertBlueprintAdmin] failed", {
-      status: res.status,
-      body: text.slice(0, 2000),
-      serviceKeyLen: serviceKey.length,
-      serviceKeyPrefix: serviceKey.slice(0, 6),
-    });
-    throw new Error(text || `Insert failed with status ${res.status}`);
-  }
-
-  // PostgREST returns an array for return=representation
-  const json = JSON.parse(text) as Array<{ id: string }>;
-  const id = json?.[0]?.id;
-  if (!id) throw new Error("Insert succeeded but no id returned.");
-  return id;
-}
-
 export async function POST(req: Request) {
   const requestId = crypto.randomUUID();
 
@@ -159,7 +86,7 @@ export async function POST(req: Request) {
         details: intakeRes.error.flatten(),
       });
     }
-    const intake = intakeRes.data;
+    const intake: Intake = intakeRes.data;
 
     // 3) Prompt
     const prompt = buildBlueprintPrompt(intake);
@@ -191,7 +118,8 @@ export async function POST(req: Request) {
     const schemaRes = BlueprintSchema.safeParse(candidate);
 
     // 8) If schema fails, attempt one repair pass
-    let blueprint: unknown;
+    let blueprint: Blueprint;
+    
 
     if (!schemaRes.success) {
       const flat = schemaRes.error.flatten();
@@ -263,10 +191,29 @@ Rules:
       blueprint = schemaRes.data;
     }
 
-    // 9) Insert with SERVICE ROLE (bypasses RLS)
-    const id = await insertBlueprintAdmin({ userId, intake, blueprint });
+    // 9) Insert using authed supabase client (RLS-safe)
+const { data, error } = await supabase
+  .from("blueprints")
+  .insert({
+    user_id: userId,
+    intake,
+    blueprint,
+    title: blueprint.header.title,
+    role: blueprint.header.role,
+    group_name: blueprint.header.preparedFor.groupName,
+  })
+  .select("id")
+  .single();
 
-    return NextResponse.json({ id });
+if (error) {
+  console.error(`[generate-blueprint] insert failed requestId=${requestId}`, error);
+  return err(500, {
+    error: error.message,
+    stage: "insert",
+  });
+}
+
+return NextResponse.json({ id: data.id });
   } catch (e: unknown) {
     console.error(`[generate-blueprint] unhandled requestId=${requestId}`, e);
     const message = e instanceof Error ? e.message : "Unexpected error";
