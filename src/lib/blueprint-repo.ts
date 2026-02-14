@@ -28,7 +28,7 @@ export async function insertBlueprint(
   return data.id as string;
 }
 
-export async function fetchBlueprintById(id: string): Promise<Blueprint | null> {
+/* export async function fetchBlueprintById(id: string): Promise<Blueprint | null> {
   const supabase = supabaseServer();
 
   const { data, error } = await supabase
@@ -42,6 +42,46 @@ export async function fetchBlueprintById(id: string): Promise<Blueprint | null> 
   const parsed = BlueprintSchema.safeParse(data?.blueprint);
   if (!parsed.success) {
     console.error("[fetchBlueprintById] schema mismatch", parsed.error.flatten());
+    return null;
+  }
+
+  return parsed.data;
+} */
+
+  export async function fetchBlueprintById(id: string): Promise<Blueprint | null> {
+  const supabase = supabaseServer();
+
+  const { data, error } = await supabase
+    .from("blueprints")
+    .select("id, user_id, title, created_at, blueprint")
+    .eq("id", id)
+    .single();
+
+  if (error) {
+    console.error("[fetchBlueprintById] supabase error", { id, error });
+    return null;
+  }
+
+  if (!data?.blueprint) {
+    console.error("[fetchBlueprintById] no blueprint field", { id, dataKeys: Object.keys(data ?? {}) });
+    return null;
+  }
+
+  const parsed = BlueprintSchema.safeParse(data.blueprint);
+
+  if (!parsed.success) {
+    console.error("[fetchBlueprintById] schema mismatch", {
+      id,
+      title: data.title,
+      created_at: data.created_at,
+      issues: parsed.error.flatten(),
+      // show top-level keys to quickly diagnose drift
+      blueprintKeys:
+        typeof data.blueprint === "object" && data.blueprint !== null
+          ? Object.keys(data.blueprint as Record<string, unknown>).slice(0, 40)
+          : typeof data.blueprint,
+    });
+
     return null;
   }
 
