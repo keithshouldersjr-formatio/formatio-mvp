@@ -6,14 +6,14 @@ import { useRouter } from "next/navigation";
 import type { Dispatch, SetStateAction } from "react";
 
 import {
-  RoleOptions,
-  DesignTypeOptions,
+  TaskOptions,
+  ConstraintOptions,
   TimeHorizonOptions,
   AgeGroupOptions,
   SettingOptions,
   DurationOptions,
-  type Role,
-  type DesignType,
+  type Task,
+  type Constraint,
   type TimeHorizon,
   type AgeGroup,
   type Setting,
@@ -21,13 +21,12 @@ import {
 } from "@/lib/options";
 
 type FormData = {
-  designType: DesignType | "";
-  timeHorizon: TimeHorizon | "";
+  task: Task | "";
+  timeHorizon: TimeHorizon | ""; // only required for curriculum
 
-  role: Role | "";
   ageGroup: AgeGroup | "";
-
   groupName: string;
+  leaderName: string;
 
   desiredOutcome: string;
   topicOrText: string;
@@ -36,75 +35,32 @@ type FormData = {
   settingDetail: string;
 
   duration: Duration | "";
-  durationCustomMinutes: string; // keep as string in UI; convert on submit
+  durationCustomMinutes: string;
 
-  constraints: string; // textarea → we normalize to string[] on submit
-
-  leaderName: string; // optional
+  constraintsSelected: Constraint[];
 };
 
 type SetFormData = Dispatch<SetStateAction<FormData>>;
-
-function PremiumThinkingOverlay({ visible }: { visible: boolean }) {
-  if (!visible) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md">
-      {/* ambient glow */}
-      <div className="absolute h-[500px] w-[500px] rounded-full bg-[#C6A75E]/10 blur-3xl animate-pulse" />
-
-      <div className="relative flex flex-col items-center gap-8">
-        {/* Spinner core */}
-        <div className="relative h-24 w-24">
-          {/* outer rotating ring */}
-          <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[#C6A75E] animate-spin" />
-
-          {/* inner glow ring */}
-          <div className="absolute inset-2 rounded-full border border-[#C6A75E]/40 animate-pulse" />
-
-          {/* center orb */}
-          <div className="absolute inset-6 rounded-full bg-[#C6A75E]/20 backdrop-blur-sm" />
-        </div>
-
-        {/* Text block */}
-        <div className="text-center space-y-3">
-          <div className="text-lg font-semibold tracking-wide text-[#C6A75E]">
-            Designing Your Blueprint
-          </div>
-
-          <div className="text-sm text-white/60 max-w-xs leading-relaxed">
-            Structuring outcomes. Aligning formation goals.
-            <br />
-            Building your intentional plan…
-          </div>
-
-          {/* subtle animated dots */}
-          <div className="flex justify-center gap-1 mt-2">
-            <span className="h-2 w-2 rounded-full bg-[#C6A75E] animate-bounce [animation-delay:-0.2s]" />
-            <span className="h-2 w-2 rounded-full bg-[#C6A75E] animate-bounce [animation-delay:-0.1s]" />
-            <span className="h-2 w-2 rounded-full bg-[#C6A75E] animate-bounce" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function CardButton({
   selected,
   onClick,
   children,
+  disabled,
 }: {
   selected: boolean;
   onClick: () => void;
   children: React.ReactNode;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       className={[
         "p-4 rounded-2xl border text-left transition",
+        disabled ? "opacity-50 cursor-not-allowed" : "",
         selected
           ? "border-[#e1b369] bg-[#e1b369]/10"
           : "border-white/15 hover:border-white/35 bg-white/[0.02]",
@@ -115,11 +71,68 @@ function CardButton({
   );
 }
 
-function splitConstraints(raw: string): string[] {
-  return raw
-    .split("\n")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+function PremiumThinkingOverlay({ show }: { show: boolean }) {
+  if (!show) return null;
+
+  return (
+    <div className="fixed inset-0 z-50">
+      <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" />
+
+      <div className="relative h-full w-full flex items-center justify-center px-6">
+        <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/[0.05] p-6 shadow-2xl">
+          <div className="flex items-center gap-4">
+            <div className="relative h-12 w-12 overflow-hidden rounded-2xl border border-white/10 bg-black">
+              <Image
+                src="/dd-logo.png"
+                alt="Discipleship by Design"
+                fill
+                className="object-contain p-2"
+                priority
+              />
+            </div>
+
+            <div className="flex-1">
+              <div className="text-sm text-white/60">
+                Discipleship by Design
+              </div>
+              <div className="text-lg font-semibold tracking-tight text-[#e1b369]">
+                Designing your blueprint…
+              </div>
+            </div>
+
+            <div className="h-9 w-9 rounded-full border border-white/15 flex items-center justify-center">
+              <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-[#e1b369] animate-spin" />
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
+              <div className="h-full w-1/2 bg-[#e1b369]/70 animate-pulse rounded-full" />
+            </div>
+            <p className="text-sm text-white/60 leading-relaxed">
+              We’re building your plan with clear outcomes, pacing, prompts, and
+              follow-up. This usually takes a few seconds.
+            </p>
+
+            <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+              <div className="text-xs uppercase tracking-wider text-white/40">
+                What’s happening
+              </div>
+              <ul className="mt-2 text-sm text-white/70 space-y-1">
+                <li>• Interpreting your goal and audience</li>
+                <li>• Structuring the session flow</li>
+                <li>• Generating prompts + take-home practices</li>
+              </ul>
+            </div>
+          </div>
+
+          <p className="mt-4 text-xs text-white/40">
+            Tip: keep this tab open until the blueprint loads.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function IntakePage() {
@@ -130,13 +143,12 @@ export default function IntakePage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<FormData>({
-    designType: "",
+    task: "",
     timeHorizon: "",
 
-    role: "",
     ageGroup: "",
-
     groupName: "",
+    leaderName: "",
 
     desiredOutcome: "",
     topicOrText: "",
@@ -147,23 +159,19 @@ export default function IntakePage() {
     duration: "",
     durationCustomMinutes: "",
 
-    constraints: "",
-
-    leaderName: "",
+    constraintsSelected: [],
   });
 
   const next = () => setStep((s) => Math.min(s + 1, 4));
   const back = () => setStep((s) => Math.max(s - 1, 1));
 
-  // ----------------------------
-  // Step validation
-  // ----------------------------
-  const canGoStep1 = formData.designType !== "" && formData.timeHorizon !== "";
+  const requiresHorizon = formData.task === "Building A Curriculum";
+
+  const canGoStep1 =
+    formData.task !== "" && (!requiresHorizon || formData.timeHorizon !== "");
 
   const canGoStep2 =
-    formData.role !== "" &&
-    formData.ageGroup !== "" &&
-    formData.groupName.trim().length > 0;
+    formData.ageGroup !== "" && formData.groupName.trim().length > 0;
 
   const canGoStep3 = formData.desiredOutcome.trim().length >= 10;
 
@@ -192,48 +200,39 @@ export default function IntakePage() {
     durationNeedsCustom,
   ]);
 
-  // ----------------------------
-  // Submit
-  // ----------------------------
   async function handleSubmit() {
     try {
       setIsSubmitting(true);
       setSubmitError(null);
 
-      // Convert durationCustomMinutes to number (only when duration=Custom)
       const durationCustomMinutes =
         formData.duration === "Custom"
           ? Number(formData.durationCustomMinutes)
           : undefined;
 
-      // Normalize constraints textarea → string[]
-      //const constraintsArray = splitConstraints(formData.constraints);
-
-      const constraintsArray =
-        formData.constraints.trim().length > 0
-          ? formData.constraints
-              .split(/\n|,/g)
-              .map((s) => s.trim())
-              .filter((s) => s.length > 0)
-          : [];
-
       const payload = {
-        designType: formData.designType,
-        timeHorizon: formData.timeHorizon,
-        role: formData.role,
+        task: formData.task,
+        timeHorizon: requiresHorizon ? formData.timeHorizon : undefined,
+
         ageGroup: formData.ageGroup,
         groupName: formData.groupName.trim(),
         leaderName: formData.leaderName.trim() || undefined,
+
         desiredOutcome: formData.desiredOutcome.trim(),
         topicOrText: formData.topicOrText.trim() || "",
+
         setting: formData.setting,
         settingDetail:
           formData.setting === "Other"
             ? formData.settingDetail.trim()
             : undefined,
+
         duration: formData.duration,
         durationCustomMinutes,
-        constraints: constraintsArray.length > 0 ? constraintsArray : undefined,
+
+        constraints: formData.constraintsSelected.length
+          ? formData.constraintsSelected
+          : undefined,
       };
 
       const res = await fetch("/api/generate-blueprint", {
@@ -242,20 +241,14 @@ export default function IntakePage() {
         body: JSON.stringify(payload),
       });
 
-      // Include issues if your API returns them
       const data = (await res.json()) as {
         id?: string;
         error?: string;
-        issues?: unknown;
+        details?: unknown;
       };
 
       if (!res.ok) {
-        const details = data.issues
-          ? `\n\nDetails: ${JSON.stringify(data.issues)}`
-          : "";
-        throw new Error(
-          (data.error ?? "Failed to generate blueprint.") + details,
-        );
+        throw new Error(data.error ?? "Failed to generate blueprint.");
       }
 
       if (!data.id)
@@ -270,15 +263,14 @@ export default function IntakePage() {
 
   return (
     <main className="min-h-screen bg-black text-white flex items-center justify-center px-6">
-      <PremiumThinkingOverlay visible={isSubmitting} />
-      {/* background glow */}
+      <PremiumThinkingOverlay show={isSubmitting} />
+
       <div className="pointer-events-none fixed inset-0 opacity-60">
         <div className="absolute left-1/2 top-[-140px] h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-[#e1b369]/10 blur-3xl" />
         <div className="absolute left-[10%] top-[40%] h-[360px] w-[360px] rounded-full bg-white/5 blur-3xl" />
       </div>
 
       <div className="relative w-full max-w-2xl">
-        {/* Brand header */}
         <div className="mb-8 flex items-center gap-3">
           <div className="relative h-12 w-12 overflow-hidden rounded-2xl border border-white/10 bg-black">
             <Image
@@ -301,7 +293,7 @@ export default function IntakePage() {
 
         <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
           {step === 1 ? (
-            <StepOne
+            <StepOneTask
               formData={formData}
               setFormData={setFormData}
               next={next}
@@ -310,7 +302,7 @@ export default function IntakePage() {
           ) : null}
 
           {step === 2 ? (
-            <StepTwo
+            <StepTwoAudience
               formData={formData}
               setFormData={setFormData}
               next={next}
@@ -320,7 +312,7 @@ export default function IntakePage() {
           ) : null}
 
           {step === 3 ? (
-            <StepThree
+            <StepThreeOutcome
               formData={formData}
               setFormData={setFormData}
               next={next}
@@ -330,7 +322,7 @@ export default function IntakePage() {
           ) : null}
 
           {step === 4 ? (
-            <StepFour
+            <StepFourContext
               formData={formData}
               setFormData={setFormData}
               back={back}
@@ -347,9 +339,9 @@ export default function IntakePage() {
 }
 
 /* -----------------------------
-   Step 1: Design type + horizon
+   Step 1: Task + (optional) horizon
 ------------------------------ */
-function StepOne({
+function StepOneTask({
   formData,
   setFormData,
   next,
@@ -360,45 +352,56 @@ function StepOne({
   next: () => void;
   canNext: boolean;
 }) {
+  const requiresHorizon = formData.task === "Building A Curriculum";
+
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-semibold mb-2">What are you preparing?</h2>
+        <h2 className="text-2xl font-semibold mb-2">What do you need to do?</h2>
         <p className="text-white/60">
-          Choose what you’re designing. We’ll build the blueprint around your
-          outcome.
+          Pick the task and we’ll tailor the blueprint around it.
         </p>
       </div>
 
       <div className="space-y-3">
-        <div className="text-sm text-white/70">Design type</div>
+        <div className="text-sm text-white/70">Task</div>
         <div className="grid gap-3 sm:grid-cols-3">
-          {DesignTypeOptions.map((d) => (
-            <CardButton
-              key={d}
-              selected={formData.designType === d}
-              onClick={() => setFormData((p) => ({ ...p, designType: d }))}
-            >
-              <div className="font-semibold">{d}</div>
-            </CardButton>
-          ))}
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        <div className="text-sm text-white/70">Time horizon</div>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {TimeHorizonOptions.map((t) => (
+          {TaskOptions.map((t) => (
             <CardButton
               key={t}
-              selected={formData.timeHorizon === t}
-              onClick={() => setFormData((p) => ({ ...p, timeHorizon: t }))}
+              selected={formData.task === t}
+              onClick={() =>
+                setFormData((p) => ({
+                  ...p,
+                  task: t,
+                  // reset horizon if switching away from curriculum
+                  timeHorizon:
+                    t === "Building A Curriculum" ? p.timeHorizon : "",
+                }))
+              }
             >
               <div className="font-semibold">{t}</div>
             </CardButton>
           ))}
         </div>
       </div>
+
+      {requiresHorizon ? (
+        <div className="space-y-3">
+          <div className="text-sm text-white/70">Time horizon</div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {TimeHorizonOptions.map((h) => (
+              <CardButton
+                key={h}
+                selected={formData.timeHorizon === h}
+                onClick={() => setFormData((p) => ({ ...p, timeHorizon: h }))}
+              >
+                <div className="font-semibold">{h}</div>
+              </CardButton>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <button
         type="button"
@@ -413,9 +416,9 @@ function StepOne({
 }
 
 /* -----------------------------
-   Step 2: Role + audience
+   Step 2: Audience
 ------------------------------ */
-function StepTwo({
+function StepTwoAudience({
   formData,
   setFormData,
   next,
@@ -433,23 +436,8 @@ function StepTwo({
       <div>
         <h2 className="text-2xl font-semibold mb-2">Who are you leading?</h2>
         <p className="text-white/60">
-          This helps tailor tone, pacing, and methods.
+          This shapes tone, pacing, and engagement.
         </p>
-      </div>
-
-      <div className="space-y-3">
-        <div className="text-sm text-white/70">Your role</div>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {RoleOptions.map((r) => (
-            <CardButton
-              key={r}
-              selected={formData.role === r}
-              onClick={() => setFormData((p) => ({ ...p, role: r }))}
-            >
-              <div className="font-semibold">{r}</div>
-            </CardButton>
-          ))}
-        </div>
       </div>
 
       <div className="space-y-3">
@@ -482,7 +470,7 @@ function StepTwo({
 
         <div>
           <label className="block text-sm text-white/70 mb-2">
-            Your name (optional for now)
+            Your name (optional)
           </label>
           <input
             value={formData.leaderName}
@@ -517,9 +505,9 @@ function StepTwo({
 }
 
 /* -----------------------------
-   Step 3: Desired outcome + topic/text
+   Step 3: Outcome + topic/text
 ------------------------------ */
-function StepThree({
+function StepThreeOutcome({
   formData,
   setFormData,
   next,
@@ -555,7 +543,6 @@ function StepThree({
             }
             rows={5}
             className="w-full rounded-lg border border-white/20 bg-black/40 p-3 text-white"
-            placeholder="Example: Learners can explain the passage’s main claim and practice one concrete act of obedience this week."
           />
           <p className="mt-2 text-xs text-white/45">
             Tip: Write it as observable change, not a vague desire.
@@ -599,9 +586,9 @@ function StepThree({
 }
 
 /* -----------------------------
-   Step 4: Context + constraints + submit
+   Step 4: Context + duration + constraints
 ------------------------------ */
-function StepFour({
+function StepFourContext({
   formData,
   setFormData,
   back,
@@ -623,7 +610,7 @@ function StepFour({
       <div>
         <h2 className="text-2xl font-semibold mb-2">Context & constraints</h2>
         <p className="text-white/60">
-          This helps shape pacing, structure, and engagement choices.
+          Select up to two constraints so we can focus on the biggest hurdles.
         </p>
       </div>
 
@@ -652,7 +639,6 @@ function StepFour({
                 setFormData((p) => ({ ...p, settingDetail: e.target.value }))
               }
               className="w-full rounded-lg border border-white/20 bg-black/40 p-3 text-white"
-              placeholder="Example: Sunday evening discipleship circle"
             />
           </div>
         ) : null}
@@ -686,29 +672,56 @@ function StepFour({
                 }))
               }
               className="w-full rounded-lg border border-white/20 bg-black/40 p-3 text-white"
-              placeholder="e.g., 50"
               inputMode="numeric"
             />
           </div>
         ) : null}
       </div>
 
-      <div>
-        <label className="block text-sm text-white/70 mb-2">
-          Constraints (optional)
-        </label>
-        <textarea
-          value={formData.constraints}
-          onChange={(e) =>
-            setFormData((p) => ({ ...p, constraints: e.target.value }))
-          }
-          rows={3}
-          className="w-full rounded-lg border border-white/20 bg-black/40 p-3 text-white"
-          placeholder="One per line (recommended): e.g., limited prep time; mixed Bible knowledge; high energy group; no projector..."
-        />
-        <p className="mt-2 text-xs text-white/45">
-          Tip: Put one constraint per line for best results.
-        </p>
+      <div className="space-y-3">
+        <div className="text-sm text-white/70">Constraints (pick up to 2)</div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {ConstraintOptions.map((c) => {
+            const selected = formData.constraintsSelected.includes(c);
+            const atMax = !selected && formData.constraintsSelected.length >= 2;
+
+            return (
+              <CardButton
+                key={c}
+                selected={selected}
+                disabled={atMax}
+                onClick={() => {
+                  setFormData((p) => {
+                    const exists = p.constraintsSelected.includes(c);
+                    if (exists) {
+                      return {
+                        ...p,
+                        constraintsSelected: p.constraintsSelected.filter(
+                          (x) => x !== c,
+                        ),
+                      };
+                    }
+                    if (p.constraintsSelected.length >= 2) return p;
+                    return {
+                      ...p,
+                      constraintsSelected: [...p.constraintsSelected, c],
+                    };
+                  });
+                }}
+              >
+                <div className="font-semibold">{c}</div>
+                <div className="text-xs text-white/60 mt-1">
+                  {selected ? "Selected" : atMax ? "Max 2 selected" : "Select"}
+                </div>
+              </CardButton>
+            );
+          })}
+        </div>
+        {formData.constraintsSelected.length ? (
+          <p className="text-xs text-white/50">
+            Selected: {formData.constraintsSelected.join(" · ")}
+          </p>
+        ) : null}
       </div>
 
       {submitError ? (
@@ -732,7 +745,7 @@ function StepFour({
           onClick={onSubmit}
           className="rounded-full bg-[#e1b369] px-6 py-2 text-sm font-semibold text-black disabled:opacity-60"
         >
-          Generate Blueprint
+          {isSubmitting ? "Designing…" : "Generate Blueprint"}
         </button>
       </div>
     </div>

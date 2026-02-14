@@ -1,97 +1,75 @@
 // src/lib/schema.ts
 import { z } from "zod";
+import {
+  RoleOptions,
+  DesignTypeOptions,
+  TimeHorizonOptions,
+  AgeGroupOptions,
+  SettingOptions,
+  DurationOptions,
+  ConstraintOptions,
+  TaskOptions,
+} from "@/lib/options";
 
 /* ----------------------------------
    OPTION CONSTANTS
 ----------------------------------- */
 
-export const RoleOptions = ["Teacher", "Pastor/Leader", "Youth Leader"] as const;
-export type Role = (typeof RoleOptions)[number];
+export const TaskSchema = z.enum(TaskOptions);
+export type Task = z.infer<typeof TaskSchema>;
 
-export const DesignTypeOptions = [
-  "Single Lesson",
-  "Multi-Week Series",
-  "Quarter Curriculum",
-] as const;
-export type DesignType = (typeof DesignTypeOptions)[number];
-
-export const TimeHorizonOptions = [
-  "Single Session",
-  "4–6 Weeks",
-  "Quarter/Semester",
-] as const;
-export type TimeHorizon = (typeof TimeHorizonOptions)[number];
-
-export const AgeGroupOptions = [
-  "Children",
-  "Students",
-  "Adults",
-  "Multi-Generational",
-] as const;
-export type AgeGroup = (typeof AgeGroupOptions)[number];
-
-export const SettingOptions = [
-  "Sunday School",
-  "Small Group",
-  "Youth Gathering",
-  "Leadership Training",
-  "Midweek Bible Study",
-  "Other",
-] as const;
-export type Setting = (typeof SettingOptions)[number];
-
-export const DurationOptions = ["45–60 min", "75–90 min", "Custom"] as const;
-export type Duration = (typeof DurationOptions)[number];
-
-/* ----------------------------------
-   INTAKE SCHEMA (MVP SAFE)
-   - Keep this aligned with Intake page payload
------------------------------------ */
+const RoleSchema = z.enum(RoleOptions);
+const DesignTypeSchema = z.enum(DesignTypeOptions);
+const TimeHorizonSchema = z.enum(TimeHorizonOptions);
+const AgeGroupSchema = z.enum(AgeGroupOptions);
+const SettingSchema = z.enum(SettingOptions);
+const DurationSchema = z.enum(DurationOptions);
+const ConstraintSchema = z.enum(ConstraintOptions);
 
 export const IntakeSchema = z
   .object({
-    role: z.enum(RoleOptions),
-    designType: z.enum(DesignTypeOptions),
-    timeHorizon: z.enum(TimeHorizonOptions),
-    ageGroup: z.enum(AgeGroupOptions),
+    // NEW: task is the primary selector
+    task: TaskSchema,
 
-    setting: z.enum(SettingOptions),
-    settingDetail: z.string().optional(),
+    // Audience/context
+    ageGroup: AgeGroupSchema,
+    groupName: z.string().min(1),
+    leaderName: z.string().optional(),
 
-    duration: z.enum(DurationOptions),
-    durationCustomMinutes: z.number().int().min(10).max(240).optional(),
-
-    // IMPORTANT: if your UI may omit it, keep optional.
-    // If you want it required, change to z.string().min(1)
+    desiredOutcome: z.string().min(10),
     topicOrText: z.string().optional(),
 
-    desiredOutcome: z.string().min(5),
+    setting: SettingSchema,
+    settingDetail: z.string().optional(),
 
-    leaderName: z.string().min(1).optional(),
-    groupName: z.string().min(1),
+    duration: DurationSchema,
+    durationCustomMinutes: z.number().optional(),
 
-    // Prefer array at API boundary; your Intake page can split text into array.
-    constraints: z.array(z.string()).optional(),
+    constraints: z.array(ConstraintSchema).max(2).optional(),
+
+    // Derived fields (optional, but present if you want to store them)
+    // These are set by prompt generation logic, not by UI.
+    role: RoleSchema.optional(),
+    designType: DesignTypeSchema.optional(),
+    timeHorizon: TimeHorizonSchema.optional(),
   })
-  .superRefine((v, ctx) => {
-    // If setting is "Other", require settingDetail
-    if (v.setting === "Other" && !v.settingDetail?.trim()) {
+  .superRefine((val, ctx) => {
+    // Duration custom requires minutes
+    if (val.duration === "Custom" && typeof val.durationCustomMinutes !== "number") {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["settingDetail"],
-        message: "settingDetail is required when setting is Other.",
+        code: "custom",
+        path: ["durationCustomMinutes"],
+        message: "Custom duration requires durationCustomMinutes.",
       });
     }
 
-    // If duration is "Custom", require durationCustomMinutes
-    if (v.duration === "Custom") {
-      if (typeof v.durationCustomMinutes !== "number") {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["durationCustomMinutes"],
-          message: "durationCustomMinutes is required when duration is Custom.",
-        });
-      }
+    // Only curriculum requires time horizon
+    if (val.task === "Building A Curriculum" && !val.timeHorizon) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["timeHorizon"],
+        message: "Time horizon is required when building a curriculum.",
+      });
     }
   });
 

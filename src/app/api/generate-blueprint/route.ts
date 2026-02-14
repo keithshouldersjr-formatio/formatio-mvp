@@ -4,6 +4,13 @@ import OpenAI from "openai";
 import { IntakeSchema, BlueprintSchema, type Intake, type Blueprint } from "@/lib/schema";
 import { buildBlueprintPrompt } from "@/lib/prompt";
 import { supabaseRoute } from "@/lib/supabase-route";
+// ADD these imports at top
+import {
+  deriveRoleFromTask,
+  deriveDesignTypeFromTask,
+  defaultTimeHorizon,
+  requiresTimeHorizon,
+} from "@/lib/intake";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -88,8 +95,22 @@ export async function POST(req: Request) {
     }
     const intake: Intake = intakeRes.data;
 
+    // Derive consistent fields for prompt + storage
+const role = intake.role ?? deriveRoleFromTask(intake.task);
+const designType = intake.designType ?? deriveDesignTypeFromTask(intake.task);
+const timeHorizon =
+  intake.timeHorizon ??
+  (requiresTimeHorizon(intake.task) ? undefined : defaultTimeHorizon(intake.task));
+
+const intakeNormalized = {
+  ...intake,
+  role,
+  designType,
+  timeHorizon,
+};
+
     // 3) Prompt
-    const prompt = buildBlueprintPrompt(intake);
+    const prompt = buildBlueprintPrompt(intakeNormalized);
 
     // 4) OpenAI
     const apiKey = process.env.OPENAI_API_KEY;
@@ -130,9 +151,56 @@ export async function POST(req: Request) {
       console.error(`[generate-blueprint] raw (first 4000) requestId=${requestId}\n`, raw.slice(0, 4000));
 
       const repairPrompt = `
-You must FIX the JSON to match the required schema. Return ONLY the corrected JSON object (no prose).
+Fix the JSON to match the required schema EXACTLY. Return ONLY the corrected JSON object.
 
-Validation errors (flattened):
+Here is the REQUIRED SHAPE (keys must match exactly):
+
+{
+  "header": {
+    "title": "string",
+    "subtitle": "string (optional)",
+    "role": "Teacher | Pastor/Leader | Youth Leader",
+    "preparedFor": { "leaderName": "string", "groupName": "string" },
+    "context": {
+      "designType": "Single Lesson | Multi-Week Series | Quarter Curriculum",
+      "timeHorizon": "string",
+      "ageGroup": "string",
+      "setting": "string",
+      "durationMinutes": number,
+      "topicOrText": "string",
+      "constraints": ["string"]
+    }
+  },
+  "overview": {
+    "executiveSummary": "string",
+    "outcomes": { "formationGoal": "string", "measurableIndicators": ["string"] },
+    "bloomsObjectives": [
+      { "level": "Remember|Understand|Apply|Analyze|Evaluate|Create", "objective": "string", "evidence": "string" }
+    ]
+  },
+  "modules": {
+    "teacher": {
+      "prepChecklist": { "beforeTheWeek": ["string"], "dayOf": ["string"] },
+      "lessonPlan": {
+        "planType": "Single Session|Multi-Session|Quarter/Semester",
+        "sessions": [
+          { "title": "string", "durationMinutes": number, "flow": [{ "segment": "string", "minutes": number, "purpose": "string" }] }
+        ]
+      },
+      "facilitationPrompts": {
+        "openingQuestions": ["string"],
+        "discussionQuestions": ["string"],
+        "applicationPrompts": ["string"]
+      },
+      "followUpPlan": { "sameWeekPractice": ["string"], "nextTouchpoint": ["string"] }
+    }
+  },
+  "recommendedResources": [
+    { "title": "string", "author": "string", "publisher": "string", "amazonUrl": "string", "publisherUrl": "string", "whyThisHelps": "string" }
+  ]
+}
+
+Validation errors you must fix:
 ${JSON.stringify(flat, null, 2)}
 
 Bad JSON you produced:
@@ -140,9 +208,8 @@ ${raw}
 
 Rules:
 - Output ONLY a single JSON object.
-- Root keys must be exactly: header, overview, modules, recommendedResources
-- Do not wrap in { "blueprint": ... } or add extra root keys.
-- Ensure every required field exists with the correct type.
+- Do NOT wrap in { "blueprint": ... } or add extra keys.
+- Do NOT change the required key names.
 `.trim();
 
       const repair = await callModel(client, repairPrompt);
@@ -196,7 +263,7 @@ const { data, error } = await supabase
   .from("blueprints")
   .insert({
     user_id: userId,
-    intake,
+    intake: intakeNormalized,
     blueprint,
     title: blueprint.header.title,
     role: blueprint.header.role,
