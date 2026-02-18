@@ -359,7 +359,7 @@ function TeacherModuleView({ bp }: { bp: Blueprint }) {
 }
 
 function PastorLeaderModuleView({ bp }: { bp: Blueprint }) {
-  const raw = bp.modules.pastorLeader as unknown;
+  const raw = bp.modules.teacher as unknown;
   if (!isPastorLeaderModule(raw)) return null;
   const m = raw;
 
@@ -482,7 +482,7 @@ function PastorLeaderModuleView({ bp }: { bp: Blueprint }) {
 }
 
 function YouthLeaderModuleView({ bp }: { bp: Blueprint }) {
-  const raw = bp.modules.youthLeader as unknown;
+  const raw = bp.modules.teacher as unknown;
   if (!isYouthLeaderModule(raw)) return null;
   const m = raw;
 

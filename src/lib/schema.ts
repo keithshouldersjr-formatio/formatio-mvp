@@ -32,7 +32,7 @@ const ConstraintSchema = z.enum(ConstraintOptions);
 
 export const IntakeSchema = z
   .object({
-    task: TaskSchema,
+    //task: TaskSchema,
 
     ageGroup: AgeGroupSchema,
     groupName: z.string().min(1),
@@ -64,13 +64,13 @@ export const IntakeSchema = z
     }
 
     // Only curriculum requires time horizon
-    if (val.task === "Build Curriculum" && !val.timeHorizon) {
+    /* if (val.task === "Build Curriculum" && !val.timeHorizon) {
       ctx.addIssue({
         code: "custom",
         path: ["timeHorizon"],
         message: "Time horizon is required when Build Curriculum.",
       });
-    }
+    } */
   });
 
 export type Intake = z.infer<typeof IntakeSchema>;
@@ -121,21 +121,23 @@ const SessionSchema = z.object({
   flow: z.array(FlowItemSchema).min(1),
 });
 
+
 /* ----------------------------------
    MODULES (DBD-native)
-   - UPDATED for new simplified teacher shape
+   - TIGHTENED for single-session teacher shape
 ----------------------------------- */
 
+const SingleSessionLessonPlanSchema = z.object({
+  planType: z.literal("Single Session"),
+  sessions: z.array(SessionSchema).length(1),
+});
+
 const TeacherModuleSchema = z.object({
-  // ✅ NEW: single checklist list (no beforeTheWeek/dayOf split)
-  prepChecklist: z.array(z.string().min(2)).min(1),
+  // ✅ single checklist list (no beforeTheWeek/dayOf split)
+  prepChecklist: z.array(z.string().min(2)).min(1).max(12),
 
-  lessonPlan: z.object({
-    planType: z.enum(["Single Session", "Multi-Session", "Quarter/Semester"]),
-    sessions: z.array(SessionSchema).min(1),
-  }),
-
-  // ❌ followUpPlan removed per new blueprint shape
+  // ✅ enforce single session
+  lessonPlan: SingleSessionLessonPlanSchema,
 });
 
 const PastorLeaderModuleSchema = z.object({
@@ -224,8 +226,8 @@ export const BlueprintSchema = z.object({
       setting: z.enum(SettingOptions).or(z.string()),
       ageGroup: z.enum(AgeGroupOptions).or(z.string()),
 
-      designType: z.enum(DesignTypeOptions).or(z.string()),
-      timeHorizon: z.enum(TimeHorizonOptions).or(z.string()),
+      designType: z.literal("Single Lesson"),
+      timeHorizon: z.literal("Single Session"),
 
       durationMinutes: z.number().int().min(10).max(240),
       topicOrText: z.string(),
@@ -246,10 +248,8 @@ export const BlueprintSchema = z.object({
   }),
 
   modules: z.object({
-    teacher: TeacherModuleSchema.optional(),
-    pastorLeader: PastorLeaderModuleSchema.optional(),
-    youthLeader: YouthLeaderModuleSchema.optional(),
-  }),
+  teacher: TeacherModuleSchema, // ✅ required
+}),
 
   recommendedResources: z
     .array(

@@ -9,12 +9,6 @@ import {
 } from "@/lib/schema";
 import { buildBlueprintPrompt } from "@/lib/prompt";
 import { supabaseRoute } from "@/lib/supabase-route";
-import {
-  deriveRoleFromTask,
-  deriveDesignTypeFromTask,
-  defaultTimeHorizon,
-  requiresTimeHorizon,
-} from "@/lib/intake";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -73,11 +67,11 @@ async function callModel(client: OpenAI, prompt: string) {
 
 /**
  * Repair prompt aligned to your CURRENT schema:
- * - overview.outcomes.howToMeasureGrowth (renamed)
+ * - overview.outcomes.howToMeasureGrowth
  * - overview.executiveSummary removed
- * - modules.teacher.prepChecklist is a STRING ARRAY (simplified)
+ * - modules.teacher.prepChecklist is string[]
  * - modules.teacher.followUpPlan removed
- * - flow items REQUIRE movement: Inform|Inspire|Involve
+ * - flow items REQUIRE movement
  */
 function buildRepairPrompt(args: { flatErrors: unknown; badJsonRaw: string }) {
   const { flatErrors, badJsonRaw } = args;
@@ -161,9 +155,9 @@ REQUIRED SHAPE (keys must match exactly):
 HARD RULES:
 - Output ONLY a single JSON object. No wrapper keys like { "blueprint": ... }.
 - Do NOT include overview.executiveSummary.
-- Do NOT include overview.outcomes.measurableIndicators (it is now howToMeasureGrowth).
+- Do NOT include overview.outcomes.measurableIndicators.
 - Do NOT include modules.teacher.followUpPlan.
-- Do NOT include modules.teacher.prepChecklist.beforeTheWeek/dayOf (prepChecklist is now an array of strings).
+- Do NOT include modules.teacher.prepChecklist.beforeTheWeek/dayOf.
 - modules.teacher MUST be an OBJECT (not an array).
 - sessions MUST be an array of objects.
 - flow MUST be an array; each item must include movement.
@@ -208,20 +202,15 @@ export async function POST(req: Request) {
     }
     const intake: Intake = intakeRes.data;
 
-    // 2b) Derive consistent fields for prompt + storage
-    const role = intake.role ?? deriveRoleFromTask(intake.task);
-    const designType = intake.designType ?? deriveDesignTypeFromTask(intake.task);
-
-    // ✅ only include time horizon when the task REQUIRES it
-    const timeHorizon =
-      intake.timeHorizon ??
-      (requiresTimeHorizon(intake.task) ? defaultTimeHorizon(intake.task) : undefined);
-
+    // 2b) Normalize derived fields (single-session assumptions)
+    // NOTE: topicOrText is optional in intake but required in blueprint.header.context,
+    // so we normalize it to "" if missing (prompt will still have it).
     const intakeNormalized: Intake = {
       ...intake,
-      role,
-      designType,
-      timeHorizon,
+      role: intake.role ?? "Teacher",
+      designType: "Single Lesson",
+      timeHorizon: "Single Session",
+      topicOrText: intake.topicOrText ?? "",
     };
 
     // 3) Prompt

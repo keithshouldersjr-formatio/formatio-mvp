@@ -1,12 +1,6 @@
 // src/lib/prompt.ts
 import type { Intake } from "@/lib/schema";
 import { DBD_METHOD } from "@/lib/methodology";
-import {
-  deriveRoleFromTask,
-  deriveDesignTypeFromTask,
-  defaultTimeHorizon,
-  requiresTimeHorizon,
-} from "@/lib/intake";
 
 function formatMethodologyForPrompt() {
   const convictions = DBD_METHOD.coreConvictions.map((c) => `- ${c}`).join("\n");
@@ -40,8 +34,8 @@ Three Dimensions of Objective (for every lesson/session):
 - Hands — ${DBD_METHOD.objectiveDimensions.hands}
 
 Structural requirements (non-negotiable):
-- The blueprint MUST use Head/Heart/Hands language for objectives.
-- The blueprint MUST use Inform/Inspire/Involve language for engagement.
+- Use Head/Heart/Hands language for objectives.
+- Use Inform/Inspire/Involve language for engagement.
 - Every session must include:
   - objectives: { head, heart, hands }
   - engagement: { inform[], inspire[], involve[] }
@@ -51,87 +45,120 @@ Structural requirements (non-negotiable):
 `.trim();
 }
 
-export function buildBlueprintPrompt(intake: Intake) {
-  const role = intake.role ?? deriveRoleFromTask(intake.task);
-  const designType = intake.designType ?? deriveDesignTypeFromTask(intake.task);
+function roleGuidance(role: Intake["role"]) {
+  if (role === "Pastor/Leader") {
+    return `
+ROLE TUNING (Pastor/Leader):
+- Assume you are equipping leaders AND possibly facilitating the session.
+- Keep teacher-facing instructions simple.
+- Add alignmentNotes (3–5 bullets) inside pastorLeader.planOverview.
+- Add measurementFramework that matches "How To Measure Growth" (simple + usable).
+- Add ONE leader training session (30–45 min) that helps someone else run this session.
+`.trim();
+  }
 
-  const timeHorizon =
-    intake.timeHorizon ??
-    (requiresTimeHorizon(intake.task) ? defaultTimeHorizon(intake.task) : undefined);
+  if (role === "Youth Leader") {
+    return `
+ROLE TUNING (Youth Leader):
+- Assume students need movement, variety, and clear instructions.
+- Involve MUST include at least one activity with:
+  - a clear prompt
+  - a tangible output (poster, response card, short roleplay, etc.)
+- Flow should include transitions and time-boxed segments to keep energy focused.
+`.trim();
+  }
+
+  // Default: Teacher
+  return `
+ROLE TUNING (Teacher):
+- Assume a volunteer teacher leading one session.
+- Give clear “what to say / what to ask / what to do” prompts.
+- Engagement bullets must be concrete examples tied to the topic/outcome.
+- Keep prep minimal and realistic (4–8 checklist items).
+- Include exactly ONE weekly practice step reflected in:
+  - hands objective AND
+  - the Involve engagement bullets.
+`.trim();
+}
+
+function durationToMinutes(intake: Intake): number {
+  if (intake.duration === "Custom" && typeof intake.durationCustomMinutes === "number") {
+    return intake.durationCustomMinutes;
+  }
+  if (intake.duration === "45–60 min") return 60;
+  if (intake.duration === "75–90 min") return 90;
+  return 60;
+}
+
+export function buildBlueprintPrompt(intake: Intake) {
+  const role = intake.role ?? "Teacher";
+  const designType = "Single Lesson";
+  const timeHorizon = "Single Session";
+  const durationMinutes = durationToMinutes(intake);
 
   const constraints = intake.constraints?.length
     ? intake.constraints.slice(0, 2).join("; ")
     : "None provided";
 
+  const setting = `${intake.setting}${intake.settingDetail ? ` (${intake.settingDetail})` : ""}`;
+  const topicOrText = intake.topicOrText?.trim() ? intake.topicOrText.trim() : "";
+
   return `
 You are generating a discipleship blueprint for Discipleship by Design.
-Your audience is volunteer leaders and teachers with little-to-no formal training in education.
-Your job is to produce a plan that is spiritually faithful, realistic to execute, and clearly measurable.
+Audience: volunteer leaders and teachers with little-to-no formal training in education.
+Goal: ONE single-session plan that is spiritually faithful, realistic to execute, and clearly measurable.
 
 ${formatMethodologyForPrompt()}
 
 Non-negotiable design principles:
 1) Backwards Design (do NOT skip this):
-   - Begin with a clear Formation Goal (what learners become/do).
-   - Define How To Measure Growth (observable evidence of growth).
-   - Define a THREE-DIMENSION objective set in Head/Heart/Hands language
-     that directly supports the formation goal.
-   - Then build sessions that intentionally move Inform → Inspire → Involve.
+   - Begin with a clear Formation Goal (1–2 sentences).
+   - Define How To Measure Growth (3–6 observable indicators).
+   - Define Head/Heart/Hands objectives (each 1 sentence max).
+   - Then build ONE session that intentionally moves Inform → Inspire → Involve.
 
 2) Realism & Feasibility:
-   - Session plans must fit the session length.
-   - Flow segment minutes MUST sum to the session durationMinutes.
-   - Keep plans achievable for volunteers with limited prep.
-   - Use scripture accessibly (assume some learners have low Bible literacy).
+   - This is ONE session only (no curriculum, no multi-week plans).
+   - Flow segment minutes MUST sum to ${durationMinutes}.
+   - Keep prep achievable for volunteers with limited time.
+   - Assume some learners have low Bible literacy; explain simply.
 
 3) Constraints must shape decisions:
-   - Do not merely mention constraints—adapt pacing, explanations, and activities to them.
-   - The plan should feel designed around the top 1–2 constraints.
+   - Adapt pacing, explanations, and activities to the top 1–2 constraints.
+   - The plan should feel designed around the constraints (not generic).
 
-Task-specific requirements:
-- Teach A Class:
-  - Keep it clear + simple.
-  - Use the Inform → Inspire → Involve rhythm.
-  - Include ONE concrete “Hands” practice step for the week.
-  - Keep objectives and engagement short (1 sentence objective each; 2–5 engagement bullets each).
-- Lead A Workshop:
-  - Make it participatory (exercises + debrief).
-  - Keep instructions short and explicit.
-  - Involve must include at least one activity with a clear prompt and output.
-- Build Curriculum:
-  - Ensure progression across sessions (each session builds toward the formation goal).
-  - Every session still must include objectives + engagement + flow.
-  - Prefer 4–8 sessions unless timeHorizon clearly implies otherwise.
-  - If role is Pastor/Leader, include leader training + measurement framework.
+Inform / Inspire / Involve content rules (VERY IMPORTANT):
+- These are NOT theory statements.
+- Each movement must include 2–5 bullets of concrete prompts a leader can actually do:
+  - what to say (1–2 sentence script),
+  - what to ask (a question),
+  - what to do (a mini-activity or structure),
+  all tied directly to the Desired Outcome + Topic/Text.
+
+${roleGuidance(role)}
 
 Now generate the blueprint using the intake details below:
 
-Task: ${intake.task}
-Design Type (use this in header.context.designType): ${designType}
-Role (modules must match this role): ${role}
-${timeHorizon ? `Time Horizon (use this in header.context.timeHorizon): ${timeHorizon}` : ""}
+Role: ${role}
+Design Type: ${designType}
+Time Horizon: ${timeHorizon}
 
 Audience Age Group: ${intake.ageGroup}
 Group Name: ${intake.groupName}
 Leader Name: ${intake.leaderName ?? "Not provided"}
 
-Setting: ${intake.setting}${intake.settingDetail ? ` (${intake.settingDetail})` : ""}
-Session Length:
-${
-  intake.duration === "Custom"
-    ? `${intake.durationCustomMinutes ?? "?"} minutes`
-    : intake.duration
-}
+Setting: ${setting}
+Session Length: ${durationMinutes} minutes
 
 Desired Outcome (formation intent): ${intake.desiredOutcome}
-Topic/Text: ${intake.topicOrText ?? ""}
+Topic/Text: ${topicOrText}
 
 Top Constraints (max 2): ${constraints}
 
 OUTPUT FORMAT RULES (STRICT):
 - Return ONLY valid JSON (no markdown/backticks/commentary).
 - Root keys must be exactly: header, overview, modules, recommendedResources
-- The JSON must match this exact shape and key names:
+- JSON must match this exact shape and key names:
 
 {
   "header": {
@@ -140,11 +167,11 @@ OUTPUT FORMAT RULES (STRICT):
     "role": "Teacher | Pastor/Leader | Youth Leader",
     "preparedFor": { "leaderName": "string", "groupName": "string" },
     "context": {
-      "designType": "Single Lesson | Multi-Week Series | Quarter Curriculum",
-      "timeHorizon": "string",
+      "designType": "Single Lesson",
+      "timeHorizon": "Single Session",
       "ageGroup": "string",
       "setting": "string",
-      "durationMinutes": number,
+      "durationMinutes": ${durationMinutes},
       "topicOrText": "string",
       "constraints": ["string", "string"]
     }
@@ -161,26 +188,28 @@ OUTPUT FORMAT RULES (STRICT):
     }
   },
   "modules": {
-    "teacher": {
-      "prepChecklist": ["string", "..."],
-      "lessonPlan": {
-        "planType": "Single Session|Multi-Session|Quarter/Semester",
-        "sessions": [
-          {
-            "title": "string",
-            "durationMinutes": number,
-            "objectives": { "head": "string", "heart": "string", "hands": "string" },
-            "engagement": { "inform": ["string"], "inspire": ["string"], "involve": ["string"] },
-            "flow": [
-              { "segment": "string", "minutes": number, "purpose": "string", "movement": "Inform|Inspire|Involve" }
-            ]
-          }
-        ]
-      }
-    },
-    "pastorLeader": "omit unless role is Pastor/Leader",
-    "youthLeader": "omit unless role is Youth Leader"
-  },
+  "teacher": {
+    "prepChecklist": ["string", "..."],
+    "lessonPlan": {
+      "planType": "Single Session",
+      "sessions": [
+        {
+          "title": "string",
+          "durationMinutes": number,
+          "objectives": { "head": "string", "heart": "string", "hands": "string" },
+          "engagement": {
+            "inform": ["string"],
+            "inspire": ["string"],
+            "involve": ["string"]
+          },
+          "flow": [
+            { "segment": "string", "minutes": number, "purpose": "string", "movement": "Inform|Inspire|Involve" }
+          ]
+        }
+      ]
+    }
+  }
+},
   "recommendedResources": [
     { "title": "string", "author": "string", "publisher": "string", "amazonUrl": "string", "publisherUrl": "string", "whyThisHelps": "string" }
   ]
@@ -188,18 +217,24 @@ OUTPUT FORMAT RULES (STRICT):
 
 Hard rules:
 - Root keys must be exactly: header, overview, modules, recommendedResources
-- modules.teacher must be an OBJECT (not an array).
-- Put role/designType/timeHorizon/durationMinutes/constraints into header.context (and leaderName/groupName into header.preparedFor).
-- If role is Teacher, include only modules.teacher (do not include pastorLeader/youthLeader).
-- overview.outcomes.howToMeasureGrowth must be a list of 3+ observable indicators.
-- prepChecklist must be ONE list (no “day of” vs “before the week”).
+- header.context.designType MUST be "Single Lesson"
+- header.context.timeHorizon MUST be "Single Session"
+- header.context.durationMinutes MUST be ${durationMinutes}
+- Always include modules.teacher (even if role is Pastor/Leader or Youth Leader).
+- Do NOT include modules.pastorLeader or modules.youthLeader in this version.
+- If role is Pastor/Leader, include modules.pastorLeader and omit youthLeader.
+- If role is Youth Leader, include modules.youthLeader and omit pastorLeader.
+- modules.teacher.prepChecklist must be ONE list (4–8 items).
+- lessonPlan.planType MUST be "Single Session"
+- sessions MUST contain exactly 1 session object.
+- overview.outcomes.howToMeasureGrowth MUST be 3–6 observable indicators.
+- Do NOT include executiveSummary.
 - Do NOT include followUpPlan.
-- Every session must include objectives + engagement + flow.
 - Every flow item must include movement = Inform|Inspire|Involve.
-- Flow minutes must sum to durationMinutes for that session.
+- Flow minutes must sum to ${durationMinutes}.
 - Keep writing short and practical:
   - formationGoal: 1–2 sentences max
   - each objective: 1 sentence max
-  - engagement bullets: short, concrete examples (2–5 per movement)
+  - engagement bullets: 2–5 per movement, concrete and actionable
 `.trim();
 }

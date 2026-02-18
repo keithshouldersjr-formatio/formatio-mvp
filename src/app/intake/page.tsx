@@ -6,23 +6,24 @@ import { useRouter } from "next/navigation";
 import type { Dispatch, SetStateAction } from "react";
 
 import {
-  TaskOptions,
+  RoleOptions,
   ConstraintOptions,
-  TimeHorizonOptions,
   AgeGroupOptions,
   SettingOptions,
   DurationOptions,
-  type Task,
+  DesignTypeOptions,
+  TimeHorizonOptions,
+  type Role,
   type Constraint,
-  type TimeHorizon,
   type AgeGroup,
   type Setting,
   type Duration,
+  type DesignType,
+  type TimeHorizon,
 } from "@/lib/options";
 
 type FormData = {
-  task: Task | "";
-  timeHorizon: TimeHorizon | ""; // only required for curriculum
+  role: Role | "";
 
   ageGroup: AgeGroup | "";
   groupName: string;
@@ -111,7 +112,7 @@ function PremiumThinkingOverlay({ show }: { show: boolean }) {
             </div>
             <p className="text-sm text-white/60 leading-relaxed">
               We’re building your plan with clear outcomes, pacing, prompts, and
-              follow-up. This usually takes a few seconds.
+              volunteer-friendly activities.
             </p>
 
             <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
@@ -119,9 +120,11 @@ function PremiumThinkingOverlay({ show }: { show: boolean }) {
                 What’s happening
               </div>
               <ul className="mt-2 text-sm text-white/70 space-y-1">
-                <li>• Interpreting your goal and audience</li>
-                <li>• Structuring the session flow</li>
-                <li>• Generating prompts + take-home practices</li>
+                <li>• Translating your desired outcome into objectives</li>
+                <li>
+                  • Structuring the session flow (Inform → Inspire → Involve)
+                </li>
+                <li>• Generating prompts you can actually use</li>
               </ul>
             </div>
           </div>
@@ -138,13 +141,13 @@ function PremiumThinkingOverlay({ show }: { show: boolean }) {
 export default function IntakePage() {
   const router = useRouter();
 
+  // ✅ New flow: 3 steps (Role → Audience → Outcome → Context)
   const [step, setStep] = useState<number>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<FormData>({
-    task: "",
-    timeHorizon: "",
+    role: "",
 
     ageGroup: "",
     groupName: "",
@@ -165,10 +168,7 @@ export default function IntakePage() {
   const next = () => setStep((s) => Math.min(s + 1, 4));
   const back = () => setStep((s) => Math.max(s - 1, 1));
 
-  const requiresHorizon = formData.task === "Build Curriculum";
-
-  const canGoStep1 =
-    formData.task !== "" && (!requiresHorizon || formData.timeHorizon !== "");
+  const canGoStep1 = formData.role !== "";
 
   const canGoStep2 =
     formData.ageGroup !== "" && formData.groupName.trim().length > 0;
@@ -210,9 +210,14 @@ export default function IntakePage() {
           ? Number(formData.durationCustomMinutes)
           : undefined;
 
+      // ✅ Hard-set single-session assumptions here
+      const designType: DesignType = "Single Lesson" as DesignType;
+      const timeHorizon: TimeHorizon = "Single Session" as TimeHorizon;
+
       const payload = {
-        task: formData.task,
-        timeHorizon: requiresHorizon ? formData.timeHorizon : undefined,
+        role: formData.role,
+        designType,
+        timeHorizon,
 
         ageGroup: formData.ageGroup,
         groupName: formData.groupName.trim(),
@@ -293,7 +298,7 @@ export default function IntakePage() {
 
         <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
           {step === 1 ? (
-            <StepOneTask
+            <StepOneRole
               formData={formData}
               setFormData={setFormData}
               next={next}
@@ -339,9 +344,9 @@ export default function IntakePage() {
 }
 
 /* -----------------------------
-   Step 1: Task + (optional) horizon
+   Step 1: Role (new)
 ------------------------------ */
-function StepOneTask({
+function StepOneRole({
   formData,
   setFormData,
   next,
@@ -352,55 +357,39 @@ function StepOneTask({
   next: () => void;
   canNext: boolean;
 }) {
-  const requiresHorizon = formData.task === "Build Curriculum";
-
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-semibold mb-2">What do you need to do?</h2>
+        <h2 className="text-2xl font-semibold mb-2">
+          What role are you serving?
+        </h2>
         <p className="text-white/60">
-          Pick the task and we’ll tailor the blueprint around it.
+          We’ll tailor prompts, pacing, and leadership guidance based on your
+          role.
         </p>
       </div>
 
       <div className="space-y-3">
-        <div className="text-sm text-white/70">Task</div>
+        <div className="text-sm text-white/70">Role</div>
         <div className="grid gap-3 sm:grid-cols-3">
-          {TaskOptions.map((t) => (
+          {RoleOptions.map((r) => (
             <CardButton
-              key={t}
-              selected={formData.task === t}
-              onClick={() =>
-                setFormData((p) => ({
-                  ...p,
-                  task: t,
-                  // reset horizon if switching away from curriculum
-                  timeHorizon: t === "Build Curriculum" ? p.timeHorizon : "",
-                }))
-              }
+              key={r}
+              selected={formData.role === r}
+              onClick={() => setFormData((p) => ({ ...p, role: r }))}
             >
-              <div className="font-semibold">{t}</div>
+              <div className="font-semibold">{r}</div>
+              <div className="text-xs text-white/60 mt-1">
+                {r === "Teacher"
+                  ? "Volunteer-friendly lesson plan + prompts"
+                  : r === "Pastor/Leader"
+                    ? "Leadership-facing guidance + clarity for teachers"
+                    : "Student engagement + activity ideas"}
+              </div>
             </CardButton>
           ))}
         </div>
       </div>
-
-      {requiresHorizon ? (
-        <div className="space-y-3">
-          <div className="text-sm text-white/70">Time horizon</div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            {TimeHorizonOptions.map((h) => (
-              <CardButton
-                key={h}
-                selected={formData.timeHorizon === h}
-                onClick={() => setFormData((p) => ({ ...p, timeHorizon: h }))}
-              >
-                <div className="font-semibold">{h}</div>
-              </CardButton>
-            ))}
-          </div>
-        </div>
-      ) : null}
 
       <button
         type="button"
@@ -526,7 +515,8 @@ function StepThreeOutcome({
           Desired formation outcome
         </h2>
         <p className="text-white/60">
-          What should learners understand, believe, or practice because of this?
+          What should learners understand, value, or practice because of this
+          session?
         </p>
       </div>
 
@@ -716,6 +706,7 @@ function StepFourContext({
             );
           })}
         </div>
+
         {formData.constraintsSelected.length ? (
           <p className="text-xs text-white/50">
             Selected: {formData.constraintsSelected.join(" · ")}
