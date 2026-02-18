@@ -72,15 +72,14 @@ async function callModel(client: OpenAI, prompt: string) {
 }
 
 /**
- * Repair prompt aligned to your NEW Discipleship by Design schema:
- * - Head/Heart/Hands objectives
- * - Inform/Inspire/Assess engagement
- * - Optional Bloom objectives
+ * Repair prompt aligned to your CURRENT schema:
+ * - overview.outcomes.howToMeasureGrowth (renamed)
+ * - overview.executiveSummary removed
+ * - modules.teacher.prepChecklist is a STRING ARRAY (simplified)
+ * - modules.teacher.followUpPlan removed
+ * - flow items REQUIRE movement: Inform|Inspire|Involve
  */
-function buildRepairPrompt(args: {
-  flatErrors: unknown;
-  badJsonRaw: string;
-}) {
+function buildRepairPrompt(args: { flatErrors: unknown; badJsonRaw: string }) {
   const { flatErrors, badJsonRaw } = args;
 
   return `
@@ -88,11 +87,11 @@ Fix the JSON to match the REQUIRED schema EXACTLY. Return ONLY the corrected JSO
 
 IMPORTANT:
 - Use volunteer-friendly language (simple, practical, no academic jargon).
-- The Discipleship by Design method is mandatory:
+- Discipleship by Design method is mandatory:
   - Each session includes objectives: head, heart, hands.
-  - Each session includes engagement: inform, inspire, assess.
-  - Session flow minutes must sum to session durationMinutes.
-  - Flow items may include an optional "movement": Inform | Inspire | Assess (recommended but optional unless your schema requires it).
+  - Each session includes engagement: inform, inspire, involve.
+  - Each flow item MUST include movement: Inform | Inspire | Involve.
+  - Flow minutes MUST sum to session durationMinutes.
 
 REQUIRED ROOT KEYS (exactly these, no extra):
 - header
@@ -119,63 +118,40 @@ REQUIRED SHAPE (keys must match exactly):
     }
   },
   "overview": {
-    "executiveSummary": "string",
     "outcomes": {
       "formationGoal": "string",
-      "measurableIndicators": ["string", "..."]
+      "howToMeasureGrowth": ["string", "..."]
     },
-
-    // REQUIRED for Discipleship by Design:
     "headHeartHandsObjectives": {
       "head": "string",
       "heart": "string",
       "hands": "string"
-    },
-
-    // Optional (include if you can, but do not break schema):
-    "bloomsObjectives": [
-      { "level": "Remember|Understand|Apply|Analyze|Evaluate|Create", "objective": "string", "evidence": "string" }
-    ]
+    }
   },
   "modules": {
     "teacher": {
-      "prepChecklist": { "beforeTheWeek": ["string"], "dayOf": ["string"] },
+      "prepChecklist": ["string", "..."],
       "lessonPlan": {
         "planType": "Single Session|Multi-Session|Quarter/Semester",
         "sessions": [
           {
             "title": "string",
             "durationMinutes": number,
-
             "objectives": { "head": "string", "heart": "string", "hands": "string" },
-
             "engagement": {
               "inform": ["string", "..."],
               "inspire": ["string", "..."],
-              "assess": ["string", "..."]
+              "involve": ["string", "..."]
             },
-
             "flow": [
-              {
-                "segment": "string",
-                "minutes": number,
-                "purpose": "string",
-                "movement": "Inform|Inspire|Assess (optional)"
-              }
+              { "segment": "string", "minutes": number, "purpose": "string", "movement": "Inform|Inspire|Involve" }
             ]
           }
         ]
-      },
-
-      // Optional top-level engagement prompts (include if your schema expects it)
-      "engagementPrompts": {
-        "inform": ["string", "..."],
-        "inspire": ["string", "..."],
-        "assess": ["string", "..."]
-      },
-
-      "followUpPlan": { "sameWeekPractice": ["string"], "nextTouchpoint": ["string"] }
-    }
+      }
+    },
+    "pastorLeader": "omit unless role is Pastor/Leader",
+    "youthLeader": "omit unless role is Youth Leader"
   },
   "recommendedResources": [
     { "title": "string", "author": "string", "publisher": "string", "amazonUrl": "string", "publisherUrl": "string", "whyThisHelps": "string" }
@@ -184,11 +160,14 @@ REQUIRED SHAPE (keys must match exactly):
 
 HARD RULES:
 - Output ONLY a single JSON object. No wrapper keys like { "blueprint": ... }.
+- Do NOT include overview.executiveSummary.
+- Do NOT include overview.outcomes.measurableIndicators (it is now howToMeasureGrowth).
+- Do NOT include modules.teacher.followUpPlan.
+- Do NOT include modules.teacher.prepChecklist.beforeTheWeek/dayOf (prepChecklist is now an array of strings).
 - modules.teacher MUST be an OBJECT (not an array).
 - sessions MUST be an array of objects.
-- minutes in flow MUST be numbers and should sum to durationMinutes.
-- If "bloomsObjectives" is present, it must be an array (not an object) and each item must include level/objective/evidence.
-- Ensure "recommendedResources" is an ARRAY.
+- flow MUST be an array; each item must include movement.
+- flow minutes MUST sum to durationMinutes.
 
 Validation errors you must fix:
 ${JSON.stringify(flatErrors, null, 2)}
@@ -233,7 +212,7 @@ export async function POST(req: Request) {
     const role = intake.role ?? deriveRoleFromTask(intake.task);
     const designType = intake.designType ?? deriveDesignTypeFromTask(intake.task);
 
-    // ✅ FIXED: time horizon only when the task REQUIRES it
+    // ✅ only include time horizon when the task REQUIRES it
     const timeHorizon =
       intake.timeHorizon ??
       (requiresTimeHorizon(intake.task) ? defaultTimeHorizon(intake.task) : undefined);

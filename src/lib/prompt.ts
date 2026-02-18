@@ -13,7 +13,7 @@ function formatMethodologyForPrompt() {
 
   const inform = DBD_METHOD.movements.inform;
   const inspire = DBD_METHOD.movements.inspire;
-  const assess = DBD_METHOD.movements.assess;
+  const involve = DBD_METHOD.movements.involve;
 
   return `
 The Discipleship by Design Method (MANDATORY):
@@ -21,7 +21,7 @@ The Discipleship by Design Method (MANDATORY):
 Core Convictions:
 ${convictions}
 
-Three Movements of Every Lesson (mapped to Bloom’s Revised Taxonomy):
+Three Movements of Every Lesson:
 1) Inform — Clarify truth.
    Bloom: ${inform.bloomLevels.join(", ")}
    Summary: ${inform.summary}
@@ -30,9 +30,9 @@ Three Movements of Every Lesson (mapped to Bloom’s Revised Taxonomy):
    Bloom: ${inspire.bloomLevels.join(", ")}
    Summary: ${inspire.summary}
 
-3) Assess — Confirm transformation and invite creation.
-   Bloom: ${assess.bloomLevels.join(", ")}
-   Summary: ${assess.summary}
+3) Involve — Involve learners through activity + creativity.
+   Bloom: ${involve.bloomLevels.join(", ")}
+   Summary: ${involve.summary}
 
 Three Dimensions of Objective (for every lesson/session):
 - Head — ${DBD_METHOD.objectiveDimensions.head}
@@ -41,12 +41,13 @@ Three Dimensions of Objective (for every lesson/session):
 
 Structural requirements (non-negotiable):
 - The blueprint MUST use Head/Heart/Hands language for objectives.
-- The blueprint MUST use Inform/Inspire/Assess language for engagement.
+- The blueprint MUST use Inform/Inspire/Involve language for engagement.
 - Every session must include:
   - objectives: { head, heart, hands }
-  - engagement: { inform[], inspire[], assess[] }
-  - flow[] with minutes and movement tags (Inform/Inspire/Assess)
+  - engagement: { inform[], inspire[], involve[] }
+  - flow[] with minutes + movement tags (Inform/Inspire/Involve)
 - Use simple, volunteer-friendly language (no academic jargon).
+- Keep it tight. Avoid fluff, filler, or long inspirational paragraphs.
 `.trim();
 }
 
@@ -54,7 +55,6 @@ export function buildBlueprintPrompt(intake: Intake) {
   const role = intake.role ?? deriveRoleFromTask(intake.task);
   const designType = intake.designType ?? deriveDesignTypeFromTask(intake.task);
 
-  // ✅ only include time horizon when task requires it
   const timeHorizon =
     intake.timeHorizon ??
     (requiresTimeHorizon(intake.task) ? defaultTimeHorizon(intake.task) : undefined);
@@ -73,9 +73,10 @@ ${formatMethodologyForPrompt()}
 Non-negotiable design principles:
 1) Backwards Design (do NOT skip this):
    - Begin with a clear Formation Goal (what learners become/do).
-   - Define Measurable Indicators (observable evidence of growth).
+   - Define How To Measure Growth (observable evidence of growth).
    - Define a THREE-DIMENSION objective set in Head/Heart/Hands language
      that directly supports the formation goal.
+   - Then build sessions that intentionally move Inform → Inspire → Involve.
 
 2) Realism & Feasibility:
    - Session plans must fit the session length.
@@ -90,15 +91,18 @@ Non-negotiable design principles:
 Task-specific requirements:
 - Teach A Class:
   - Keep it clear + simple.
-  - Use the Inform → Inspire → Assess rhythm.
+  - Use the Inform → Inspire → Involve rhythm.
   - Include ONE concrete “Hands” practice step for the week.
+  - Keep objectives and engagement short (1 sentence objective each; 2–5 engagement bullets each).
 - Lead A Workshop:
   - Make it participatory (exercises + debrief).
   - Keep instructions short and explicit.
+  - Involve must include at least one activity with a clear prompt and output.
 - Build Curriculum:
-  - Ensure progression across sessions.
+  - Ensure progression across sessions (each session builds toward the formation goal).
   - Every session still must include objectives + engagement + flow.
-  - Include leader training + measurement framework if the role is Pastor/Leader.
+  - Prefer 4–8 sessions unless timeHorizon clearly implies otherwise.
+  - If role is Pastor/Leader, include leader training + measurement framework.
 
 Now generate the blueprint using the intake details below:
 
@@ -146,10 +150,9 @@ OUTPUT FORMAT RULES (STRICT):
     }
   },
   "overview": {
-    "executiveSummary": "string",
     "outcomes": {
       "formationGoal": "string",
-      "measurableIndicators": ["string", "..."]
+      "howToMeasureGrowth": ["string", "..."]
     },
     "headHeartHandsObjectives": {
       "head": "string",
@@ -159,7 +162,7 @@ OUTPUT FORMAT RULES (STRICT):
   },
   "modules": {
     "teacher": {
-      "prepChecklist": { "beforeTheWeek": ["string"], "dayOf": ["string"] },
+      "prepChecklist": ["string", "..."],
       "lessonPlan": {
         "planType": "Single Session|Multi-Session|Quarter/Semester",
         "sessions": [
@@ -167,14 +170,13 @@ OUTPUT FORMAT RULES (STRICT):
             "title": "string",
             "durationMinutes": number,
             "objectives": { "head": "string", "heart": "string", "hands": "string" },
-            "engagement": { "inform": ["string"], "inspire": ["string"], "assess": ["string"] },
+            "engagement": { "inform": ["string"], "inspire": ["string"], "involve": ["string"] },
             "flow": [
-              { "segment": "string", "minutes": number, "purpose": "string", "movement": "Inform|Inspire|Assess" }
+              { "segment": "string", "minutes": number, "purpose": "string", "movement": "Inform|Inspire|Involve" }
             ]
           }
         ]
-      },
-      "followUpPlan": { "sameWeekPractice": ["string"], "nextTouchpoint": ["string"] }
+      }
     },
     "pastorLeader": "omit unless role is Pastor/Leader",
     "youthLeader": "omit unless role is Youth Leader"
@@ -189,8 +191,15 @@ Hard rules:
 - modules.teacher must be an OBJECT (not an array).
 - Put role/designType/timeHorizon/durationMinutes/constraints into header.context (and leaderName/groupName into header.preparedFor).
 - If role is Teacher, include only modules.teacher (do not include pastorLeader/youthLeader).
+- overview.outcomes.howToMeasureGrowth must be a list of 3+ observable indicators.
+- prepChecklist must be ONE list (no “day of” vs “before the week”).
+- Do NOT include followUpPlan.
 - Every session must include objectives + engagement + flow.
-- Every flow item must include movement = Inform|Inspire|Assess.
+- Every flow item must include movement = Inform|Inspire|Involve.
 - Flow minutes must sum to durationMinutes for that session.
+- Keep writing short and practical:
+  - formationGoal: 1–2 sentences max
+  - each objective: 1 sentence max
+  - engagement bullets: short, concrete examples (2–5 per movement)
 `.trim();
 }

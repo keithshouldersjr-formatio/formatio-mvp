@@ -79,7 +79,7 @@ export type Intake = z.infer<typeof IntakeSchema>;
    DBD METHOD TYPES (single model)
 ----------------------------------- */
 
-const DbdMovementSchema = z.enum(["Inform", "Inspire", "Assess"]);
+const DbdMovementSchema = z.enum(["Inform", "Inspire", "Involve"]);
 export type DbdMovement = z.infer<typeof DbdMovementSchema>;
 
 const HeadHeartHandsSchema = z.object({
@@ -91,7 +91,7 @@ const HeadHeartHandsSchema = z.object({
 const EngagementSchema = z.object({
   inform: z.array(z.string().min(2)).min(1),
   inspire: z.array(z.string().min(2)).min(1),
-  assess: z.array(z.string().min(2)).min(1),
+  involve: z.array(z.string().min(2)).min(1),
 });
 
 /* ----------------------------------
@@ -105,7 +105,7 @@ const FlowItemSchema = z.object({
   // plain language for volunteers
   purpose: z.string().min(3),
 
-  // REQUIRED: explicitly tagged as Inform/Inspire/Assess
+  // REQUIRED: explicitly tagged as Inform/Inspire/Involve
   movement: DbdMovementSchema,
 });
 
@@ -123,23 +123,19 @@ const SessionSchema = z.object({
 
 /* ----------------------------------
    MODULES (DBD-native)
+   - UPDATED for new simplified teacher shape
 ----------------------------------- */
 
 const TeacherModuleSchema = z.object({
-  prepChecklist: z.object({
-    beforeTheWeek: z.array(z.string().min(2)).min(1),
-    dayOf: z.array(z.string().min(2)).min(1),
-  }),
+  // ✅ NEW: single checklist list (no beforeTheWeek/dayOf split)
+  prepChecklist: z.array(z.string().min(2)).min(1),
 
   lessonPlan: z.object({
     planType: z.enum(["Single Session", "Multi-Session", "Quarter/Semester"]),
     sessions: z.array(SessionSchema).min(1),
   }),
 
-  followUpPlan: z.object({
-    sameWeekPractice: z.array(z.string().min(2)).min(1),
-    nextTouchpoint: z.array(z.string().min(2)).min(1),
-  }),
+  // ❌ followUpPlan removed per new blueprint shape
 });
 
 const PastorLeaderModuleSchema = z.object({
@@ -209,6 +205,7 @@ const YouthLeaderModuleSchema = z.object({
 
 /* ----------------------------------
    BLUEPRINT OUTPUT (DBD-native)
+   - UPDATED for new overview + teacher module shape
 ----------------------------------- */
 
 export const BlueprintSchema = z.object({
@@ -237,14 +234,14 @@ export const BlueprintSchema = z.object({
   }),
 
   overview: z.object({
-    executiveSummary: z.string().min(10),
-
+    // ✅ executiveSummary removed (formationGoal becomes the top-level explanation on UI)
     outcomes: z.object({
       formationGoal: z.string().min(10),
-      measurableIndicators: z.array(z.string().min(3)).min(3),
+
+      // ✅ measurableIndicators renamed
+      howToMeasureGrowth: z.array(z.string().min(3)).min(3),
     }),
 
-    // NEW: single “Objectives” model (required)
     headHeartHandsObjectives: HeadHeartHandsSchema,
   }),
 

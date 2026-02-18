@@ -269,7 +269,7 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
 
-type DbdMovement = "Inform" | "Inspire" | "Assess";
+type DbdMovement = "Inform" | "Inspire" | "Involve";
 
 type FlowItem = {
   segment: string;
@@ -279,8 +279,21 @@ type FlowItem = {
 };
 
 function safeMovement(v: unknown): DbdMovement | null {
-  if (v === "Inform" || v === "Inspire" || v === "Assess") return v;
+  if (v === "Inform" || v === "Inspire" || v === "Involve") return v;
   return null;
+}
+
+function readGrowthMeasures(outcomes: unknown): string[] {
+  if (typeof outcomes !== "object" || outcomes === null) return [];
+  const o = outcomes as Record<string, unknown>;
+
+  const howTo = safeArr(o["howToMeasureGrowth"]);
+  if (howTo.length) return howTo;
+
+  const legacy = safeArr(o["measurableIndicators"]);
+  if (legacy.length) return legacy;
+
+  return [];
 }
 
 function safeFlow(v: unknown): FlowItem[] {
@@ -309,17 +322,17 @@ function safeHHH(v: unknown): HeadHeartHands | null {
   return { head, heart, hands };
 }
 
-type Engagement = { inform: string[]; inspire: string[]; assess: string[] };
+type Engagement = { inform: string[]; inspire: string[]; involve: string[] };
 
 function safeEngagement(v: unknown): Engagement | null {
   if (!isRecord(v)) return null;
 
   const inform = safeArr(v["inform"]);
   const inspire = safeArr(v["inspire"]);
-  const assess = safeArr(v["assess"]);
+  const involve = safeArr(v["involve"]);
 
-  if (!inform.length || !inspire.length || !assess.length) return null;
-  return { inform, inspire, assess };
+  if (!inform.length || !inspire.length || !involve.length) return null;
+  return { inform, inspire, involve };
 }
 
 type TeacherModule = {
@@ -437,11 +450,11 @@ function EngagementCard({ e }: { e: Engagement | null }) {
       </View>
 
       <View style={[styles.card, styles.col]}>
-        <Text style={styles.h3}>Assess</Text>
+        <Text style={styles.h3}>Involve</Text>
         <Text style={styles.small}>
           Confirm growth + invite creation (evaluate + create)
         </Text>
-        <BulletList items={e.assess} emptyText="—" />
+        <BulletList items={e.involve} emptyText="—" />
       </View>
     </View>
   );
@@ -462,15 +475,11 @@ export function buildBlueprintPdfDocument(
   const leader = safeStr(header?.preparedFor?.leaderName);
   const group = safeStr(header?.preparedFor?.groupName);
 
-  const execSummary = safeStr(
-    overview?.executiveSummary,
-    "No summary available.",
-  );
   const formationGoal = safeStr(
     overview?.outcomes?.formationGoal,
     "No formation goal provided.",
   );
-  const indicators = safeArr(overview?.outcomes?.measurableIndicators);
+  const indicators = readGrowthMeasures(overview?.outcomes);
 
   const hhhOverview = safeHHH(overview?.headHeartHandsObjectives);
 
@@ -529,14 +538,6 @@ export function buildBlueprintPdfDocument(
 
         <Text style={styles.title}>{title}</Text>
 
-        {/* Executive Summary */}
-        <View style={styles.section}>
-          <SectionTitle title="Executive Summary" />
-          <View style={styles.card}>
-            <Text style={styles.paragraph}>{execSummary}</Text>
-          </View>
-        </View>
-
         {/* Formation Goal */}
         <View style={styles.section}>
           <SectionTitle title="Formation Goal" />
@@ -576,7 +577,7 @@ export function buildBlueprintPdfDocument(
               <Text style={styles.tag}>Inform — clarify truth</Text>
               <Text style={styles.tag}>Inspire — connect truth to life</Text>
               <Text style={styles.tag}>
-                Assess — confirm growth + invite creation
+                Involve — confirm growth + invite creation
               </Text>
             </View>
             <Text style={[styles.paragraph, { marginTop: 8 }]}>
@@ -669,7 +670,7 @@ export function buildBlueprintPdfDocument(
                       {/* Session engagement */}
                       <View style={{ marginTop: 12 }}>
                         <Text style={styles.h3}>
-                          Engagement (Inform · Inspire · Assess)
+                          Engagement (Inform · Inspire · Involve)
                         </Text>
                         <View style={{ marginTop: 6 }}>
                           <EngagementCard e={engagement} />

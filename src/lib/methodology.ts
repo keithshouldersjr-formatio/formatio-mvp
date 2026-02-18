@@ -14,7 +14,7 @@ export const DBD_METHOD = {
       bloomLevels: ["Apply", "Analyze"],
       summary: "Connect truth to life through application and discussion.",
     },
-    assess: {
+    involve: {
       bloomLevels: ["Evaluate", "Create"],
       summary: "Confirm transformation and invite creative response.",
     },

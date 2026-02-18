@@ -8,6 +8,7 @@ type MenuItem = { label: string; href: string };
 const MENU: MenuItem[] = [
   { label: "New Blueprint", href: "/intake" },
   { label: "My Blueprints", href: "/blueprints" },
+  { label: "About", href: "/about" },
   { label: "Home", href: "/" },
 ];
 
@@ -31,6 +32,7 @@ export function AppMenu() {
         className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] hover:bg-white/[0.07] transition"
       >
         <div className="flex flex-col gap-1">
+          <span className="block h-0.5 w-5 bg-white/80" />
           <span className="block h-0.5 w-5 bg-white/80" />
           <span className="block h-0.5 w-5 bg-white/80" />
           <span className="block h-0.5 w-5 bg-white/80" />

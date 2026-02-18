@@ -51,7 +51,32 @@ function ListCard({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-type Movement = "Inform" | "Inspire" | "Assess";
+function readGrowthMeasures(outcomes: unknown): string[] {
+  if (typeof outcomes !== "object" || outcomes === null) return [];
+
+  const o = outcomes as Record<string, unknown>;
+
+  const toStrings = (v: unknown): string[] =>
+    Array.isArray(v)
+      ? v.filter(
+          (x): x is string => typeof x === "string" && x.trim().length > 0, // ✅ boolean
+        )
+      : [];
+
+  // new field
+  const howTo = o["howToMeasureGrowth"];
+  const howToArr = toStrings(howTo);
+  if (howToArr.length) return howToArr;
+
+  // backwards-compat: old records
+  const legacy = o["measurableIndicators"];
+  const legacyArr = toStrings(legacy);
+  if (legacyArr.length) return legacyArr;
+
+  return [];
+}
+
+type Movement = "Inform" | "Inspire" | "Involve";
 
 type FlowItem = {
   segment: string;
@@ -68,7 +93,7 @@ function MovementPill({ movement }: { movement?: Movement }) {
       ? "Inform"
       : movement === "Inspire"
         ? "Inspire"
-        : "Assess";
+        : "Involve";
 
   return (
     <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/65">
@@ -77,18 +102,22 @@ function MovementPill({ movement }: { movement?: Movement }) {
   );
 }
 
+/**
+ * Simplified session view:
+ * - DO NOT repeat Head/Heart/Hands here
+ * - Show Inform/Inspire/Involve examples (engagement)
+ * - Keep flow (tagged)
+ */
 function SessionCard({
   title,
   durationMinutes,
   flow,
-  objectives,
   engagement,
 }: {
   title: string;
   durationMinutes: number;
   flow: FlowItem[];
-  objectives?: { head: string; heart: string; hands: string };
-  engagement?: { inform: string[]; inspire: string[]; assess: string[] };
+  engagement?: { inform: string[]; inspire: string[]; involve: string[] };
 }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-black/30 p-5 space-y-4">
@@ -97,46 +126,14 @@ function SessionCard({
         <div className="text-xs text-white/50">{durationMinutes} min</div>
       </div>
 
-      {/* Objectives (Head/Heart/Hands) */}
-      {objectives ? (
-        <div className="grid gap-3 md:grid-cols-3">
-          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-            <div className="text-xs uppercase tracking-wider text-white/50">
-              Head
-            </div>
-            <div className="mt-1 text-sm text-white/80 leading-relaxed">
-              {objectives.head}
-            </div>
-          </div>
-          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-            <div className="text-xs uppercase tracking-wider text-white/50">
-              Heart
-            </div>
-            <div className="mt-1 text-sm text-white/80 leading-relaxed">
-              {objectives.heart}
-            </div>
-          </div>
-          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-            <div className="text-xs uppercase tracking-wider text-white/50">
-              Hands
-            </div>
-            <div className="mt-1 text-sm text-white/80 leading-relaxed">
-              {objectives.hands}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {/* Engagement (Inform/Inspire/Assess) */}
       {engagement ? (
         <div className="grid gap-3 md:grid-cols-3">
           <ListCard title="Inform" items={engagement.inform} />
           <ListCard title="Inspire" items={engagement.inspire} />
-          <ListCard title="Assess" items={engagement.assess} />
+          <ListCard title="Involve" items={engagement.involve} />
         </div>
       ) : null}
 
-      {/* Flow */}
       <div className="space-y-3">
         {flow.map((s, idx) => (
           <div
@@ -213,18 +210,17 @@ function NotFoundView() {
 type TeacherSession = {
   title: string;
   durationMinutes: number;
-  objectives: { head: string; heart: string; hands: string };
-  engagement: { inform: string[]; inspire: string[]; assess: string[] };
+  engagement: { inform: string[]; inspire: string[]; involve: string[] };
   flow: FlowItem[];
 };
 
 type TeacherModule = {
-  prepChecklist: { beforeTheWeek: string[]; dayOf: string[] };
+  // ✅ new shape: one checklist array
+  prepChecklist: string[];
   lessonPlan: {
     planType: "Single Session" | "Multi-Session" | "Quarter/Semester";
     sessions: TeacherSession[];
   };
-  followUpPlan: { sameWeekPractice: string[]; nextTouchpoint: string[] };
 };
 
 type PastorLeaderModule = {
@@ -277,27 +273,18 @@ function isTeacherModule(v: unknown): v is TeacherModule {
   if (typeof v !== "object" || v === null) return false;
   const o = v as Record<string, unknown>;
 
-  if (
-    typeof o.prepChecklist !== "object" ||
-    o.prepChecklist === null ||
-    typeof o.lessonPlan !== "object" ||
-    o.lessonPlan === null ||
-    typeof o.followUpPlan !== "object" ||
-    o.followUpPlan === null
-  ) {
-    return false;
-  }
+  // ✅ prepChecklist is now an array
+  if (!Array.isArray(o.prepChecklist)) return false;
+  if (typeof o.lessonPlan !== "object" || o.lessonPlan === null) return false;
 
   const lp = o.lessonPlan as Record<string, unknown>;
   if (!Array.isArray(lp.sessions)) return false;
 
-  // Sanity check: new schema sessions include objectives + engagement
   const first = lp.sessions[0] as unknown;
   if (typeof first !== "object" || first === null) return false;
   const s = first as Record<string, unknown>;
+
   return (
-    typeof s.objectives === "object" &&
-    s.objectives !== null &&
     typeof s.engagement === "object" &&
     s.engagement !== null &&
     Array.isArray(s.flow)
@@ -307,6 +294,7 @@ function isTeacherModule(v: unknown): v is TeacherModule {
 function isPastorLeaderModule(v: unknown): v is PastorLeaderModule {
   if (typeof v !== "object" || v === null) return false;
   const o = v as Record<string, unknown>;
+
   return (
     typeof o.planOverview === "object" &&
     o.planOverview !== null &&
@@ -342,20 +330,11 @@ function TeacherModuleView({ bp }: { bp: Blueprint }) {
   return (
     <section className="space-y-4">
       <SectionTitle
-        title="Teacher Module"
-        subtitle="A volunteer-friendly plan: objectives + engagement + flow for each session."
+        title="Teacher Plan"
+        subtitle="Straight to the point: prep + lesson plan."
       />
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <ListCard
-          title="Prep checklist (before the week)"
-          items={m.prepChecklist.beforeTheWeek}
-        />
-        <ListCard
-          title="Prep checklist (day of)"
-          items={m.prepChecklist.dayOf}
-        />
-      </div>
+      <ListCard title="Prep Checklist" items={m.prepChecklist} />
 
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 space-y-4">
         <div className="flex items-center justify-between gap-3">
@@ -369,23 +348,11 @@ function TeacherModuleView({ bp }: { bp: Blueprint }) {
               key={i}
               title={s.title}
               durationMinutes={s.durationMinutes}
-              objectives={s.objectives}
               engagement={s.engagement}
               flow={s.flow}
             />
           ))}
         </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <ListCard
-          title="Same-week practice"
-          items={m.followUpPlan.sameWeekPractice}
-        />
-        <ListCard
-          title="Next touchpoint"
-          items={m.followUpPlan.nextTouchpoint}
-        />
       </div>
     </section>
   );
@@ -627,11 +594,14 @@ export default async function BlueprintPage({
     ? blueprint.header.context.topicOrText
     : null;
 
-  const hhh = blueprint.overview.headHeartHandsObjectives;
+  // ✅ new schema: no executiveSummary; formationGoal lives in outcomes
+  const formationGoalText = blueprint.overview.outcomes.formationGoal;
+
+  // ✅ new schema: renamed list
+  const growthMeasures = readGrowthMeasures(blueprint.overview.outcomes);
 
   return (
     <main className="min-h-screen bg-black text-white">
-      {/* subtle premium background */}
       <div className="pointer-events-none fixed inset-0 opacity-60">
         <div className="absolute left-1/2 top-[-120px] h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-[#C6A75E]/10 blur-3xl" />
         <div className="absolute left-[10%] top-[35%] h-[360px] w-[360px] rounded-full bg-white/5 blur-3xl" />
@@ -679,8 +649,8 @@ export default async function BlueprintPage({
           </div>
         </div>
 
-        {/* Hero */}
-        <header className="mb-10 space-y-4">
+        {/* Hero (tightened; no long paragraph) */}
+        <header className="mb-8 space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             <Pill>Role: {role}</Pill>
             <Pill>Leader: {blueprint.header.preparedFor.leaderName}</Pill>
@@ -703,74 +673,28 @@ export default async function BlueprintPage({
               {blueprint.header.subtitle}
             </p>
           ) : null}
-
-          <p className="max-w-3xl text-white/70 leading-relaxed">
-            {blueprint.overview.executiveSummary}
-          </p>
         </header>
 
         {/* Formation outcome */}
         <section className="space-y-4">
           <SectionTitle
             title="Formation Outcome"
-            subtitle="This is the north star for the blueprint (Backwards Design)."
+            subtitle="Start here. Everything flows from the formation goal."
           />
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
               <div className="text-sm font-semibold text-white mb-2">
-                Formation goal
+                Formation Goal
               </div>
               <p className="text-sm text-white/70 leading-relaxed">
-                {blueprint.overview.outcomes.formationGoal}
+                {formationGoalText}
               </p>
             </div>
 
-            <ListCard
-              title="Measurable indicators"
-              items={blueprint.overview.outcomes.measurableIndicators}
-            />
+            <ListCard title="How To Measure Growth" items={growthMeasures} />
           </div>
         </section>
-
-        {/* Objectives (DBD) */}
-        {hhh ? (
-          <section className="mt-10 space-y-4">
-            <SectionTitle
-              title="Objectives (Head · Heart · Hands)"
-              subtitle="Simple learning targets for the whole blueprint."
-            />
-
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-                <div className="text-sm font-semibold text-white mb-2">
-                  Head
-                </div>
-                <p className="text-sm text-white/70 leading-relaxed">
-                  {hhh.head}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-                <div className="text-sm font-semibold text-white mb-2">
-                  Heart
-                </div>
-                <p className="text-sm text-white/70 leading-relaxed">
-                  {hhh.heart}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-                <div className="text-sm font-semibold text-white mb-2">
-                  Hands
-                </div>
-                <p className="text-sm text-white/70 leading-relaxed">
-                  {hhh.hands}
-                </p>
-              </div>
-            </div>
-          </section>
-        ) : null}
 
         {/* Modules */}
         <div className="mt-10 space-y-10">
@@ -787,7 +711,7 @@ export default async function BlueprintPage({
         <section className="mt-12 space-y-4">
           <SectionTitle
             title="Recommended Resources"
-            subtitle="A short stack to deepen your practice and sharpen your blueprint."
+            subtitle="A short stack to deepen your practice."
           />
 
           <div className="grid gap-4">
