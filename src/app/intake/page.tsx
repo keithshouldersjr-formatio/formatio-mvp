@@ -6,32 +6,27 @@ import { useRouter } from "next/navigation";
 import type { Dispatch, SetStateAction } from "react";
 
 import {
-  RoleOptions,
   ConstraintOptions,
   AgeGroupOptions,
   SettingOptions,
   DurationOptions,
-  DesignTypeOptions,
-  TimeHorizonOptions,
-  type Role,
   type Constraint,
   type AgeGroup,
   type Setting,
   type Duration,
-  type DesignType,
-  type TimeHorizon,
 } from "@/lib/options";
 
 type FormData = {
-  role: Role | "";
+  // Step 1
+  desiredOutcome: string;
+  topicOrText: string;
 
+  // Step 2
   ageGroup: AgeGroup | "";
   groupName: string;
   leaderName: string;
 
-  desiredOutcome: string;
-  topicOrText: string;
-
+  // Step 3
   setting: Setting | "";
   settingDetail: string;
 
@@ -112,7 +107,7 @@ function PremiumThinkingOverlay({ show }: { show: boolean }) {
             </div>
             <p className="text-sm text-white/60 leading-relaxed">
               We’re building your plan with clear outcomes, pacing, prompts, and
-              volunteer-friendly activities.
+              practical activities. This usually takes a few seconds.
             </p>
 
             <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
@@ -120,11 +115,9 @@ function PremiumThinkingOverlay({ show }: { show: boolean }) {
                 What’s happening
               </div>
               <ul className="mt-2 text-sm text-white/70 space-y-1">
-                <li>• Translating your desired outcome into objectives</li>
-                <li>
-                  • Structuring the session flow (Inform → Inspire → Involve)
-                </li>
-                <li>• Generating prompts you can actually use</li>
+                <li>• Interpreting your goal and audience</li>
+                <li>• Structuring the session flow</li>
+                <li>• Generating Inform / Inspire / Involve prompts</li>
               </ul>
             </div>
           </div>
@@ -141,20 +134,17 @@ function PremiumThinkingOverlay({ show }: { show: boolean }) {
 export default function IntakePage() {
   const router = useRouter();
 
-  // ✅ New flow: 3 steps (Role → Audience → Outcome → Context)
   const [step, setStep] = useState<number>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<FormData>({
-    role: "",
+    desiredOutcome: "",
+    topicOrText: "",
 
     ageGroup: "",
     groupName: "",
     leaderName: "",
-
-    desiredOutcome: "",
-    topicOrText: "",
 
     setting: "",
     settingDetail: "",
@@ -165,15 +155,13 @@ export default function IntakePage() {
     constraintsSelected: [],
   });
 
-  const next = () => setStep((s) => Math.min(s + 1, 4));
+  const next = () => setStep((s) => Math.min(s + 1, 3));
   const back = () => setStep((s) => Math.max(s - 1, 1));
 
-  const canGoStep1 = formData.role !== "";
-
+  // Step gates
+  const canGoStep1 = formData.desiredOutcome.trim().length >= 10;
   const canGoStep2 =
     formData.ageGroup !== "" && formData.groupName.trim().length > 0;
-
-  const canGoStep3 = formData.desiredOutcome.trim().length >= 10;
 
   const durationNeedsCustom =
     formData.duration === "Custom" &&
@@ -189,11 +177,10 @@ export default function IntakePage() {
       formData.duration !== "" &&
       (formData.duration !== "Custom" || durationNeedsCustom);
 
-    return canGoStep1 && canGoStep2 && canGoStep3 && settingOk && durationOk;
+    return canGoStep1 && canGoStep2 && settingOk && durationOk;
   }, [
     canGoStep1,
     canGoStep2,
-    canGoStep3,
     formData.setting,
     formData.settingDetail,
     formData.duration,
@@ -210,15 +197,7 @@ export default function IntakePage() {
           ? Number(formData.durationCustomMinutes)
           : undefined;
 
-      // ✅ Hard-set single-session assumptions here
-      const designType: DesignType = "Single Lesson" as DesignType;
-      const timeHorizon: TimeHorizon = "Single Session" as TimeHorizon;
-
       const payload = {
-        role: formData.role,
-        designType,
-        timeHorizon,
-
         ageGroup: formData.ageGroup,
         groupName: formData.groupName.trim(),
         leaderName: formData.leaderName.trim() || undefined,
@@ -238,6 +217,10 @@ export default function IntakePage() {
         constraints: formData.constraintsSelected.length
           ? formData.constraintsSelected
           : undefined,
+
+        // Optional: you can set role here explicitly if you want,
+        // but your API already defaults role to Teacher.
+        // role: "Teacher",
       };
 
       const res = await fetch("/api/generate-blueprint", {
@@ -294,11 +277,11 @@ export default function IntakePage() {
           </div>
         </div>
 
-        <p className="text-sm text-white/50 mb-4">Step {step} of 4</p>
+        <p className="text-sm text-white/50 mb-4">Step {step} of 3</p>
 
         <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
           {step === 1 ? (
-            <StepOneRole
+            <StepOneOutcome
               formData={formData}
               setFormData={setFormData}
               next={next}
@@ -317,17 +300,7 @@ export default function IntakePage() {
           ) : null}
 
           {step === 3 ? (
-            <StepThreeOutcome
-              formData={formData}
-              setFormData={setFormData}
-              next={next}
-              back={back}
-              canNext={canGoStep3}
-            />
-          ) : null}
-
-          {step === 4 ? (
-            <StepFourContext
+            <StepThreeContext
               formData={formData}
               setFormData={setFormData}
               back={back}
@@ -344,9 +317,10 @@ export default function IntakePage() {
 }
 
 /* -----------------------------
-   Step 1: Role (new)
+   Step 1: Outcome + topic/text
+   (This is your old Step 3, unchanged)
 ------------------------------ */
-function StepOneRole({
+function StepOneOutcome({
   formData,
   setFormData,
   next,
@@ -361,33 +335,43 @@ function StepOneRole({
     <div className="space-y-8">
       <div>
         <h2 className="text-2xl font-semibold mb-2">
-          What role are you serving?
+          Desired formation outcome
         </h2>
         <p className="text-white/60">
-          We’ll tailor prompts, pacing, and leadership guidance based on your
-          role.
+          What should learners understand, believe, or practice because of this?
         </p>
       </div>
 
-      <div className="space-y-3">
-        <div className="text-sm text-white/70">Role</div>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {RoleOptions.map((r) => (
-            <CardButton
-              key={r}
-              selected={formData.role === r}
-              onClick={() => setFormData((p) => ({ ...p, role: r }))}
-            >
-              <div className="font-semibold">{r}</div>
-              <div className="text-xs text-white/60 mt-1">
-                {r === "Teacher"
-                  ? "Volunteer-friendly lesson plan + prompts"
-                  : r === "Pastor/Leader"
-                    ? "Leadership-facing guidance + clarity for teachers"
-                    : "Student engagement + activity ideas"}
-              </div>
-            </CardButton>
-          ))}
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm text-white/70 mb-2">
+            Outcome (write 1–3 sentences)
+          </label>
+          <textarea
+            value={formData.desiredOutcome}
+            onChange={(e) =>
+              setFormData((p) => ({ ...p, desiredOutcome: e.target.value }))
+            }
+            rows={5}
+            className="w-full rounded-lg border border-white/20 bg-black/40 p-3 text-white"
+          />
+          <p className="mt-2 text-xs text-white/45">
+            Tip: Write it as observable change, not a vague desire.
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm text-white/70 mb-2">
+            Scripture or topic (optional)
+          </label>
+          <input
+            value={formData.topicOrText}
+            onChange={(e) =>
+              setFormData((p) => ({ ...p, topicOrText: e.target.value }))
+            }
+            className="w-full rounded-lg border border-white/20 bg-black/40 p-3 text-white"
+            placeholder="Example: Mark 2:13–17 or Prayer"
+          />
         </div>
       </div>
 
@@ -404,7 +388,7 @@ function StepOneRole({
 }
 
 /* -----------------------------
-   Step 2: Audience
+   Step 2: Audience (unchanged from your old Step 2)
 ------------------------------ */
 function StepTwoAudience({
   formData,
@@ -493,91 +477,10 @@ function StepTwoAudience({
 }
 
 /* -----------------------------
-   Step 3: Outcome + topic/text
+   Step 3: Context + duration + constraints
+   (This is your old Step 4, moved to step 3)
 ------------------------------ */
-function StepThreeOutcome({
-  formData,
-  setFormData,
-  next,
-  back,
-  canNext,
-}: {
-  formData: FormData;
-  setFormData: SetFormData;
-  next: () => void;
-  back: () => void;
-  canNext: boolean;
-}) {
-  return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="text-2xl font-semibold mb-2">
-          Desired formation outcome
-        </h2>
-        <p className="text-white/60">
-          What should learners understand, value, or practice because of this
-          session?
-        </p>
-      </div>
-
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm text-white/70 mb-2">
-            Outcome (write 1–3 sentences)
-          </label>
-          <textarea
-            value={formData.desiredOutcome}
-            onChange={(e) =>
-              setFormData((p) => ({ ...p, desiredOutcome: e.target.value }))
-            }
-            rows={5}
-            className="w-full rounded-lg border border-white/20 bg-black/40 p-3 text-white"
-          />
-          <p className="mt-2 text-xs text-white/45">
-            Tip: Write it as observable change, not a vague desire.
-          </p>
-        </div>
-
-        <div>
-          <label className="block text-sm text-white/70 mb-2">
-            Scripture or topic (optional)
-          </label>
-          <input
-            value={formData.topicOrText}
-            onChange={(e) =>
-              setFormData((p) => ({ ...p, topicOrText: e.target.value }))
-            }
-            className="w-full rounded-lg border border-white/20 bg-black/40 p-3 text-white"
-            placeholder="Example: Mark 2:13–17 or Prayer"
-          />
-        </div>
-      </div>
-
-      <div className="flex justify-between">
-        <button
-          type="button"
-          onClick={back}
-          className="text-white/60 hover:text-white"
-        >
-          Back
-        </button>
-        <button
-          type="button"
-          disabled={!canNext}
-          onClick={next}
-          className="bg-[#e1b369] text-black px-6 py-2 rounded-full font-semibold disabled:opacity-40 transition"
-        >
-          Next
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/* -----------------------------
-   Step 4: Context + duration + constraints
------------------------------- */
-function StepFourContext({
+function StepThreeContext({
   formData,
   setFormData,
   back,

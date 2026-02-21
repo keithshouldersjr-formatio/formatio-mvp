@@ -249,6 +249,46 @@ const styles = StyleSheet.create({
     fontWeight: 700,
     color: GOLD,
   },
+
+  engagementStack: {
+    gap: 10,
+  },
+
+  engagementRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+
+  engagementLabelBox: {
+    width: 110, // tweak as needed
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 10,
+    padding: 10,
+    backgroundColor: "#FFFFFF",
+  },
+
+  engagementLabel: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: GOLD,
+    marginBottom: 4,
+  },
+
+  engagementSub: {
+    fontSize: 9,
+    color: MUTED_DARK,
+    lineHeight: 1.3,
+  },
+
+  engagementBody: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 10,
+    padding: 10,
+    backgroundColor: "#FFFFFF",
+  },
 });
 
 /* ----------------------------------
@@ -311,17 +351,6 @@ function safeFlow(v: unknown): FlowItem[] {
     .slice(0, 20);
 }
 
-type HeadHeartHands = { head: string; heart: string; hands: string };
-
-function safeHHH(v: unknown): HeadHeartHands | null {
-  if (!isRecord(v)) return null;
-  const head = safeStr(v["head"], "");
-  const heart = safeStr(v["heart"], "");
-  const hands = safeStr(v["hands"], "");
-  if (!head || !heart || !hands) return null;
-  return { head, heart, hands };
-}
-
 type Engagement = { inform: string[]; inspire: string[]; involve: string[] };
 
 function safeEngagement(v: unknown): Engagement | null {
@@ -336,7 +365,9 @@ function safeEngagement(v: unknown): Engagement | null {
 }
 
 type TeacherModule = {
-  prepChecklist?: { beforeTheWeek?: string[]; dayOf?: string[] };
+  // NEW shape:
+  prepChecklist?: string[] | { beforeTheWeek?: string[]; dayOf?: string[] };
+
   lessonPlan?: {
     planType?: string;
     sessions?: Array<{
@@ -347,6 +378,8 @@ type TeacherModule = {
       flow?: unknown;
     }>;
   };
+
+  // legacy (some old rows may still have it)
   followUpPlan?: { sameWeekPractice?: string[]; nextTouchpoint?: string[] };
 };
 
@@ -357,6 +390,20 @@ function readTeacher(modules: unknown): TeacherModule | null {
   if (!isRecord(candidate)) return null;
 
   return candidate as unknown as TeacherModule;
+}
+
+function readPrepChecklist(v: unknown): string[] {
+  // new format: string[]
+  if (Array.isArray(v)) return safeArr(v);
+
+  // legacy format: { beforeTheWeek, dayOf }
+  if (isRecord(v)) {
+    const before = safeArr(v["beforeTheWeek"]);
+    const dayOf = safeArr(v["dayOf"]);
+    return [...before, ...dayOf].filter(Boolean);
+  }
+
+  return [];
 }
 
 function getSiteUrl(): string {
@@ -397,33 +444,6 @@ function BulletList({
   );
 }
 
-function HHHCard({ hhh }: { hhh: HeadHeartHands | null }) {
-  if (!hhh) {
-    return (
-      <Text style={[styles.paragraph, styles.muted]}>
-        No objectives provided.
-      </Text>
-    );
-  }
-
-  return (
-    <View style={styles.grid3}>
-      <View style={[styles.card, styles.col]}>
-        <Text style={styles.h3}>Head</Text>
-        <Text style={styles.paragraph}>{safeStr(hhh.head)}</Text>
-      </View>
-      <View style={[styles.card, styles.col]}>
-        <Text style={styles.h3}>Heart</Text>
-        <Text style={styles.paragraph}>{safeStr(hhh.heart)}</Text>
-      </View>
-      <View style={[styles.card, styles.col]}>
-        <Text style={styles.h3}>Hands</Text>
-        <Text style={styles.paragraph}>{safeStr(hhh.hands)}</Text>
-      </View>
-    </View>
-  );
-}
-
 function EngagementCard({ e }: { e: Engagement | null }) {
   if (!e) {
     return (
@@ -434,27 +454,44 @@ function EngagementCard({ e }: { e: Engagement | null }) {
   }
 
   return (
-    <View style={styles.grid3}>
-      <View style={[styles.card, styles.col]}>
-        <Text style={styles.h3}>Inform</Text>
-        <Text style={styles.small}>Clarify truth (recall + understanding)</Text>
-        <BulletList items={e.inform} emptyText="—" />
+    <View style={styles.engagementStack}>
+      {/* Inform row */}
+      <View style={styles.engagementRow}>
+        <View style={styles.engagementLabelBox}>
+          <Text style={styles.engagementLabel}>Inform</Text>
+          <Text style={styles.engagementSub}>
+            Clarify truth (recall + understanding)
+          </Text>
+        </View>
+        <View style={styles.engagementBody}>
+          <BulletList items={e.inform} emptyText="—" />
+        </View>
       </View>
 
-      <View style={[styles.card, styles.col]}>
-        <Text style={styles.h3}>Inspire</Text>
-        <Text style={styles.small}>
-          Connect truth to life (apply + analyze)
-        </Text>
-        <BulletList items={e.inspire} emptyText="—" />
+      {/* Inspire row */}
+      <View style={styles.engagementRow}>
+        <View style={styles.engagementLabelBox}>
+          <Text style={styles.engagementLabel}>Inspire</Text>
+          <Text style={styles.engagementSub}>
+            Connect truth to life (apply + analyze)
+          </Text>
+        </View>
+        <View style={styles.engagementBody}>
+          <BulletList items={e.inspire} emptyText="—" />
+        </View>
       </View>
 
-      <View style={[styles.card, styles.col]}>
-        <Text style={styles.h3}>Involve</Text>
-        <Text style={styles.small}>
-          Confirm growth + invite creation (evaluate + create)
-        </Text>
-        <BulletList items={e.involve} emptyText="—" />
+      {/* Involve row */}
+      <View style={styles.engagementRow}>
+        <View style={styles.engagementLabelBox}>
+          <Text style={styles.engagementLabel}>Involve</Text>
+          <Text style={styles.engagementSub}>
+            Confirm growth + invite creation (evaluate + create)
+          </Text>
+        </View>
+        <View style={styles.engagementBody}>
+          <BulletList items={e.involve} emptyText="—" />
+        </View>
       </View>
     </View>
   );
@@ -480,8 +517,6 @@ export function buildBlueprintPdfDocument(
     "No formation goal provided.",
   );
   const indicators = readGrowthMeasures(overview?.outcomes);
-
-  const hhhOverview = safeHHH(overview?.headHeartHandsObjectives);
 
   const teacher = readTeacher(blueprint.modules);
 
@@ -557,18 +592,6 @@ export function buildBlueprintPdfDocument(
           </View>
         </View>
 
-        {/* Objectives (Head / Heart / Hands) */}
-        <View style={styles.section}>
-          <SectionTitle title="Objectives (Head · Heart · Hands)" />
-          <Text style={[styles.small, { marginTop: 2 }]}>
-            Head: what they understand · Heart: what they value · Hands: what
-            they practice
-          </Text>
-          <View style={{ marginTop: 8 }}>
-            <HHHCard hhh={hhhOverview} />
-          </View>
-        </View>
-
         {/* Method snapshot */}
         <View style={styles.section}>
           <SectionTitle title="The Three Movements" />
@@ -611,24 +634,14 @@ export function buildBlueprintPdfDocument(
 
           <Text style={styles.title}>Teacher Module</Text>
 
-          {/* Prep Checklist */}
+          {/* Prep Checklist (single consolidated list) */}
           <View style={styles.section}>
             <SectionTitle title="Prep Checklist" />
-            <View style={styles.grid2}>
-              <View style={[styles.card, styles.col]}>
-                <Text style={styles.h3}>Before the week</Text>
-                <BulletList
-                  items={safeArr(teacher?.prepChecklist?.beforeTheWeek)}
-                  emptyText="No items provided."
-                />
-              </View>
-              <View style={[styles.card, styles.col]}>
-                <Text style={styles.h3}>Day of</Text>
-                <BulletList
-                  items={safeArr(teacher?.prepChecklist?.dayOf)}
-                  emptyText="No items provided."
-                />
-              </View>
+            <View style={styles.card}>
+              <BulletList
+                items={readPrepChecklist(teacher?.prepChecklist)}
+                emptyText="No prep checklist provided."
+              />
             </View>
           </View>
 
@@ -644,7 +657,6 @@ export function buildBlueprintPdfDocument(
               teacher.lessonPlan.sessions.length ? (
                 teacher.lessonPlan.sessions.slice(0, 12).map((s, i) => {
                   const flow = safeFlow(s?.flow);
-                  const hhh = safeHHH(s?.objectives);
                   const engagement = safeEngagement(s?.engagement);
 
                   const duration =
@@ -658,14 +670,6 @@ export function buildBlueprintPdfDocument(
                         {safeStr(s?.title, `Session ${i + 1}`)}
                       </Text>
                       <Text style={styles.small}>Duration: {duration}</Text>
-
-                      {/* Session objectives */}
-                      <View style={{ marginTop: 10 }}>
-                        <Text style={styles.h3}>
-                          Objectives (Head · Heart · Hands)
-                        </Text>
-                        <HHHCard hhh={hhh} />
-                      </View>
 
                       {/* Session engagement */}
                       <View style={{ marginTop: 12 }}>
@@ -726,27 +730,6 @@ export function buildBlueprintPdfDocument(
                   No sessions were provided.
                 </Text>
               )}
-            </View>
-          </View>
-
-          {/* Follow-up Plan */}
-          <View style={styles.section}>
-            <SectionTitle title="Follow-up Plan" />
-            <View style={styles.grid2}>
-              <View style={[styles.card, styles.col]}>
-                <Text style={styles.h3}>Same-week practice</Text>
-                <BulletList
-                  items={safeArr(teacher?.followUpPlan?.sameWeekPractice)}
-                  emptyText="No same-week practice provided."
-                />
-              </View>
-              <View style={[styles.card, styles.col]}>
-                <Text style={styles.h3}>Next touchpoint</Text>
-                <BulletList
-                  items={safeArr(teacher?.followUpPlan?.nextTouchpoint)}
-                  emptyText="No next touchpoint provided."
-                />
-              </View>
             </View>
           </View>
         </Page>

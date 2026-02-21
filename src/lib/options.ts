@@ -17,7 +17,7 @@ export type TimeHorizon = (typeof TimeHorizonOptions)[number];
 
 export const AgeGroupOptions = [
   "Children",
-  "Students",
+  "Teens",
   "Adults",
   "Multi-Generational",
 ] as const;
@@ -52,14 +52,12 @@ export type Task = (typeof TaskOptions)[number];
 // Keep your existing RoleOptions/DesignTypeOptions/etc.
 // Add constraint options (you can change these labels anytime)
 export const ConstraintOptions = [
-  "Limited prep time",
-  "Mixed Bible knowledge",
-  "Low engagement/participation",
-  "No projector / limited tech",
+  "Limited prep time",  
+  "Low participation",  
   "Short session window",
-  "High energy / easily distracted group",
-  "New believers / little Bible literacy",
-  "Volunteer teacher (not trained)",
+  "Easily Distracted Group",
+  "Little Bible literacy",
+  "Lack of Support Materials",
 ] as const;
 
 export type Constraint = (typeof ConstraintOptions)[number];
